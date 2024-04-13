@@ -45,6 +45,16 @@ The expected output should be identical whether running with docker-compose or l
 
 ## Docker Examples
 
+### Running 100 nodes
+
+```bash
+#!/bin/bash
+NUM_NODES=100
+python src/util.py $NUM_NODES topologies/blockchain.yaml blockchain
+docker compose build
+docker compose up --scale node=$NUM_NODES
+```
+
 ### Echo Algorithm
 
 ```bash
