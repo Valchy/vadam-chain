@@ -9,6 +9,9 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import serialization
+from util import merkle_root, merkle_proof
+import hashlib
+
 
 
 
@@ -26,6 +29,19 @@ class Transaction:
     nonce: int = 1
     public_key: str = ""
     signature: str = ""
+
+    def __post_init__(self):
+        self.tx_id = hashlib.sha256(f'{self.sender}{self.receiver}{self.amount}{self.nonce}'.encode()).hexdigest()
+
+
+class Block:
+    def __init__(self, transactions):
+        self.transactions = transactions
+        self.merkle_root = merkle_root([tx.tx_id for tx in transactions])
+
+    def verify_transaction(self, transaction):
+        return merkle_proof(transaction.tx_id, [tx.tx_id for tx in self.transactions])
+
 
 
 class BlockchainNode(Blockchain):
@@ -118,6 +134,7 @@ class BlockchainNode(Blockchain):
 
     def check_transactions(self):
         for tx in self.pending_txs:
+            block = self.find_block_for_transaction(tx)
             if self.balances[tx.sender] - tx.amount >= 0:
                 self.balances[tx.sender] -= tx.amount
                 self.balances[tx.receiver] += tx.amount
