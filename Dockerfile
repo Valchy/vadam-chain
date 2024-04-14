@@ -12,4 +12,5 @@ RUN pip install wheel
 RUN pip install -r requirements.txt
 COPY src /home/python/src
 COPY topologies /home/python/topologies
+ENV PYTHONPATH "${PYTHONPATH}:/home/python/src"
 CMD python -u src/run.py $PID $TOPOLOGY $ALGORITHM -docker
