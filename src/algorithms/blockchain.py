@@ -4,12 +4,12 @@ from ipv8.community import CommunitySettings
 from ipv8.messaging.payload_dataclass import overwrite_dataclass
 from dataclasses import dataclass
 from ipv8.types import Peer
-from da_types import Blockchain, message_wrapper
+from src.da_types import Blockchain, message_wrapper
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import serialization
-from util import merkle_root, merkle_proof
+from src.util import merkle_root, merkle_proof
 import hashlib
 
 

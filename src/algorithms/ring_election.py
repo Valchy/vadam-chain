@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from ipv8.types import Peer
 
-from da_types import Blockchain, message_wrapper
+from src.da_types import Blockchain, message_wrapper
 
 # We are using a custom dataclass implementation
 dataclass = overwrite_dataclass(dataclass)
