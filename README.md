@@ -4,6 +4,13 @@ This code serves as a foundational template for the cs409 - Fundamentals of Bloc
 
 **Note:** Ensure that Python version 3.8 or higher is installed when running this code locally.
 
+## Before you start
+
+1. Create an virtual environment by running `python -m venv .venv`
+2. Activate it bu running `source .venv/Scripts/activate`
+3. Download required packages with `pip install -r requirements.txt`
+4. If you need to deactivate the virtual environment run `deactivate`
+
 ## Documentation
 
 -   [IPv8 Documentation](https://py-ipv8.readthedocs.io/en/latest/index.html)
