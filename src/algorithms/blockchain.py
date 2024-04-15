@@ -68,6 +68,9 @@ class BlockchainNode(Blockchain):
         return key
 
     def sign_transaction(self, transaction: Transaction):
+        #self.crypto.create_signature(self.my_peer.key, self.serializer.pack_serializable(transaction))
+
+
         signer = self.key_pair.private_numbers().private_key()
         transaction.signature = base64.b64encode(signer.sign(
             str(transaction).encode(),
@@ -80,6 +83,9 @@ class BlockchainNode(Blockchain):
         # return transaction.signature
 
     def verify_signature(self, transaction: Transaction, public_key):
+
+        # create transaction copy without signature and then verify
+        # self.crypto.is_valid_signature(transaction.public_key, str(transaction).encode(), transaction.signature)
         verifier = public_key.public_numbers().public_key
         try:
             verifier.verify(
@@ -99,6 +105,7 @@ class BlockchainNode(Blockchain):
         peer = random.choice([i for i in self.get_peers() if self.node_id_from_peer(i) % 2 == 1])
         peer_id = self.node_id_from_peer(peer)
         tx = Transaction(self.node_id, peer_id, 10, "", "", self.counter)
+        #self.my_peer.public_key.key_to_bin()
         tx.public_key = base64.b64encode(self.key_pair.public_key().public_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PublicFormat.SubjectPublicKeyInfo
@@ -151,8 +158,8 @@ class BlockchainNode(Blockchain):
 
     @message_wrapper(Transaction)
     async def on_transaction(self, peer: Peer, payload: Transaction) -> None:
-        public_key = serialization.load_pem_public_key(payload.public_key.encode())
-        if self.verify_signature(payload, public_key):
+
+        if self.verify_signature(payload, payload.public_key):
             # Add to pending transactions if signature is verified
             print(f'[Node {self.node_id}] Received transaction {payload.nonce} from {self.node_id_from_peer(peer)}')
             if (payload.sender, payload.nonce) not in [(tx.sender, tx.nonce) for tx in self.finalized_txs] and (
