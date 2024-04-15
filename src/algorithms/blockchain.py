@@ -1,20 +1,15 @@
-import base64
+import copy
+import hashlib
 import random
 from collections import defaultdict
+from dataclasses import dataclass
+
 from ipv8.community import CommunitySettings
 from ipv8.messaging.payload_dataclass import overwrite_dataclass
-from dataclasses import dataclass
 from ipv8.types import Peer
+
 from src.da_types import Blockchain, message_wrapper
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric import padding
-from cryptography.hazmat.primitives import serialization
 from src.util import merkle_root, merkle_proof
-import hashlib
-
-
-
 
 # We are using a custom dataclass implementation.
 dataclass = overwrite_dataclass(dataclass)
@@ -27,8 +22,8 @@ class Transaction:
     sender: int
     receiver: int
     amount: int
-    public_key: str
-    signature: str
+    public_key_bin: bytes
+    signature: bytes
     nonce: int = 1
 
     def __post_init__(self):
@@ -44,7 +39,6 @@ class Block:
         return merkle_proof(transaction.tx_id, [tx.tx_id for tx in self.transactions])
 
 
-
 class BlockchainNode(Blockchain):
 
     def __init__(self, settings: CommunitySettings) -> None:
@@ -56,60 +50,28 @@ class BlockchainNode(Blockchain):
         self.pending_txs = []
         self.finalized_txs = []
         self.balances = defaultdict(lambda: 1000)
-        self.key_pair = self.generate_key_pair()
-
+        self.key_pair = self.crypto.generate_key("medium")
         self.add_message_handler(Transaction, self.on_transaction)
 
-    def generate_key_pair(self):
-        key = rsa.generate_private_key(
-            public_exponent=65537,
-            key_size=2048,
-        )
-        return key
+    def sign_transaction(self, transaction: Transaction) -> None:
+        transaction.signature = self.crypto.create_signature(self.my_peer.key,
+                                                             self.serializer.pack_serializable(transaction))
 
-    def sign_transaction(self, transaction: Transaction):
-        #self.crypto.create_signature(self.my_peer.key, self.serializer.pack_serializable(transaction))
-
-
-        signer = self.key_pair.private_numbers().private_key()
-        transaction.signature = base64.b64encode(signer.sign(
-            str(transaction).encode(),
-            padding.PSS(
-                mgf=padding.MGF1(hashes.SHA256()),
-                salt_length=padding.PSS.MAX_LENGTH
-            ),
-            hashes.SHA256()
-        )).decode('utf-8')
-        # return transaction.signature
-
-    def verify_signature(self, transaction: Transaction, public_key):
+    def verify_signature(self, transaction: Transaction) -> bool:
 
         # create transaction copy without signature and then verify
-        # self.crypto.is_valid_signature(transaction.public_key, str(transaction).encode(), transaction.signature)
-        verifier = public_key.public_numbers().public_key
-        try:
-            verifier.verify(
-                transaction.signature,
-                str(transaction).encode(),
-                padding.PSS(
-                    mgf=padding.MGF1(hashes.SHA256()),
-                    salt_length=padding.PSS.MAX_LENGTH
-                ),
-                hashes.SHA256()
-            )
-            return True
-        except Exception as e:
-            return False
+        tx_copy = copy.deepcopy(transaction)
+        tx_copy.signature = b''
+        public_key = self.crypto.key_from_public_bin(tx_copy.public_key_bin)
+        return self.crypto.is_valid_signature(public_key,
+                                              self.serializer.pack_serializable(tx_copy),
+                                              transaction.signature)
 
     def create_transaction(self):
         peer = random.choice([i for i in self.get_peers() if self.node_id_from_peer(i) % 2 == 1])
         peer_id = self.node_id_from_peer(peer)
-        tx = Transaction(self.node_id, peer_id, 10, "", "", self.counter)
-        #self.my_peer.public_key.key_to_bin()
-        tx.public_key = base64.b64encode(self.key_pair.public_key().public_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo
-        )).decode('utf-8')
+        tx = Transaction(self.node_id, peer_id, 10, b'', b'', self.counter)
+        tx.public_key_bin = self.my_peer.public_key.key_to_bin()
         self.sign_transaction(tx)
         self.counter += 1
         print(f'[Node {self.node_id}] Sending transaction {tx.nonce} to {self.node_id_from_peer(peer)}')
@@ -128,8 +90,6 @@ class BlockchainNode(Blockchain):
             # Run validator
             self.start_validator()
 
-
-
     def start_client(self):
         # Create transaction and send to random validator
         # Or put node_id
@@ -142,7 +102,7 @@ class BlockchainNode(Blockchain):
 
     def check_transactions(self):
         for tx in self.pending_txs:
-            block = self.find_block_for_transaction(tx)
+            # block = self.find_block_for_transaction(tx)
             if self.balances[tx.sender] - tx.amount >= 0:
                 self.balances[tx.sender] -= tx.amount
                 self.balances[tx.receiver] += tx.amount
@@ -159,11 +119,11 @@ class BlockchainNode(Blockchain):
     @message_wrapper(Transaction)
     async def on_transaction(self, peer: Peer, payload: Transaction) -> None:
 
-        if self.verify_signature(payload, payload.public_key):
+        if self.verify_signature(payload):
             # Add to pending transactions if signature is verified
             print(f'[Node {self.node_id}] Received transaction {payload.nonce} from {self.node_id_from_peer(peer)}')
             if (payload.sender, payload.nonce) not in [(tx.sender, tx.nonce) for tx in self.finalized_txs] and (
-            payload.sender, payload.nonce) not in [(tx.sender, tx.nonce) for tx in self.pending_txs]:
+                    payload.sender, payload.nonce) not in [(tx.sender, tx.nonce) for tx in self.pending_txs]:
                 self.pending_txs.append(payload)
         else:
 
