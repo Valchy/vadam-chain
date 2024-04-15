@@ -1,11 +1,10 @@
 import argparse
 import yaml
 from asyncio import run
-from ipv8.configuration import ConfigBuilder, default_bootstrap_defs
+from ipv8.configuration import ConfigBuilder, Strategy, WalkerDefinition, Bootstrapper, BootstrapperDefinition, default_bootstrap_defs
 from ipv8.util import create_event_with_signals
 from ipv8_service import IPv8
 from algorithms import *
-from algorithms.blockchain import BlockchainNode
 from da_types import Blockchain
 
 
@@ -19,26 +18,40 @@ def get_algorithm(name: str) -> Blockchain:
         raise Exception(f'Cannot find select algorithm with name {name}')
     return algorithms[name]
 
-
-async def start_communities(node_id, connections, algorithm, use_localhost=True) -> None:
+async def start_communities(node_id, connections, algorithm, use_localhost=True, dense=False) -> None:
     event = create_event_with_signals()
     base_port = 9090
     connections_updated = [(x, base_port + x) for x in connections]
     node_port = base_port + node_id
-    builder = ConfigBuilder().clear_keys().clear_overlays()
-    builder.add_key("my peer", "medium", f"ec{node_id}.pem")
-    builder.set_port(node_port)
-    builder.add_overlay(
-        "blockchain_community",
-        "my peer",
-        [],
-        default_bootstrap_defs,
-        {},
-        [("started", node_id, connections_updated, event, use_localhost)],
+    config = ConfigBuilder().clear_keys().clear_overlays()
+    config.add_key("my peer", "medium", f"ec{node_id}.pem")
+    config.set_port(node_port)
+
+    # Changing default rules of IPv8 to create sparse or dense topology
+    if dense:
+        # Dense topology: maximize connections
+        walker = WalkerDefinition(strategy=Strategy.RandomWalk, peers=-1, init={'timeout': 3.0})
+        bootstrapper = BootstrapperDefinition(bootstrapper=Bootstrapper.DispersyBootstrapper, init={'max_peers': 16})
+    else:
+        # Sparse topology: limit connections
+        walker = WalkerDefinition(strategy=Strategy.RandomWalk, peers=-1, init={'timeout': 10.0})
+        bootstrapper = BootstrapperDefinition(bootstrapper=Bootstrapper.DispersyBootstrapper, init={'max_peers': 6})
+
+    # Add overlay to config
+    config.add_overlay(
+        overlay_class='blockchain_community',
+        key_alias='my peer',
+        walkers=[walker],
+        bootstrappers=[bootstrapper],
+        initialize={},
+        on_start=[("started", node_id, connections_updated, event, use_localhost)],
     )
+
+    # Initialise config with ipv8 instance
     ipv8_instance = IPv8(
-        builder.finalize(), extra_communities={"blockchain_community": algorithm}
+        config.finalize(), extra_communities={"blockchain_community": algorithm}
     )
+
     await ipv8_instance.start()
     await event.wait()
     await ipv8_instance.stop()

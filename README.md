@@ -7,7 +7,7 @@ This code serves as a foundational template for the cs409 - Fundamentals of Bloc
 ## Before you start
 
 1. Create an virtual environment by running `python -m venv .venv`
-2. Activate it bu running `source .venv/Scripts/activate`
+2. Activate it bu running `source .venv/Scripts/activate` or `source .venv/bin/activate`
 3. Download required packages with `pip install -r requirements.txt`
 4. If you need to deactivate the virtual environment run `deactivate`
 
