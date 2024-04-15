@@ -44,12 +44,12 @@ def draw_graph(G, title, file_name):
     plt.close()
 
 # Number of nodes
-nodes = 200
+nodes = 100
 
 # Sparse topology parameters (min 1, max 6 connections)
 sparse_graph = generate_topology(nodes, max_peers=6, min_peers=1, connection_probability=0.02)
-draw_graph(sparse_graph, "Sparse Topology with 200 Nodes (1-6 connections per node)", "./graphs/sparse_topology.png")
+draw_graph(sparse_graph, "Sparse Topology with 100 Nodes (1-6 connections per node)", "./graphs/sparse_topology.png")
 
 # Dense topology parameters (min 1, max 16 connections)
 dense_graph = generate_topology(nodes, max_peers=16, min_peers=1, connection_probability=0.05)
-draw_graph(dense_graph, "Dense Topology with 200 Nodes (1-16 connections per node)", "./graphs/dense_topology.png")
+draw_graph(dense_graph, "Dense Topology with 100 Nodes (1-16 connections per node)", "./graphs/dense_topology.png")
