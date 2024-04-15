@@ -1,3 +1,4 @@
+import base64
 import random
 from collections import defaultdict
 from ipv8.community import CommunitySettings
@@ -26,9 +27,9 @@ class Transaction:
     sender: int
     receiver: int
     amount: int
+    public_key: str
+    signature: str
     nonce: int = 1
-    public_key: str = ""
-    signature: str = ""
 
     def __post_init__(self):
         self.tx_id = hashlib.sha256(f'{self.sender}{self.receiver}{self.amount}{self.nonce}'.encode()).hexdigest()
@@ -67,16 +68,16 @@ class BlockchainNode(Blockchain):
         return key
 
     def sign_transaction(self, transaction: Transaction):
-        signer = self.key_pair.private_numbers().private_key
-        transaction.signature = signer.sign(
+        signer = self.key_pair.private_numbers().private_key()
+        transaction.signature = base64.b64encode(signer.sign(
             str(transaction).encode(),
             padding.PSS(
                 mgf=padding.MGF1(hashes.SHA256()),
                 salt_length=padding.PSS.MAX_LENGTH
             ),
             hashes.SHA256()
-        )
-        return transaction.signature
+        )).decode('utf-8')
+        # return transaction.signature
 
     def verify_signature(self, transaction: Transaction, public_key):
         verifier = public_key.public_numbers().public_key
@@ -97,11 +98,11 @@ class BlockchainNode(Blockchain):
     def create_transaction(self):
         peer = random.choice([i for i in self.get_peers() if self.node_id_from_peer(i) % 2 == 1])
         peer_id = self.node_id_from_peer(peer)
-        tx = Transaction(self.node_id, peer_id, 10, self.counter)
-        tx.public_key = self.key_pair.public_key().public_bytes(
+        tx = Transaction(self.node_id, peer_id, 10, "", "", self.counter)
+        tx.public_key = base64.b64encode(self.key_pair.public_key().public_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PublicFormat.SubjectPublicKeyInfo
-        )
+        )).decode('utf-8')
         self.sign_transaction(tx)
         self.counter += 1
         print(f'[Node {self.node_id}] Sending transaction {tx.nonce} to {self.node_id_from_peer(peer)}')
@@ -150,7 +151,7 @@ class BlockchainNode(Blockchain):
 
     @message_wrapper(Transaction)
     async def on_transaction(self, peer: Peer, payload: Transaction) -> None:
-        public_key = serialization.load_pem_public_key(payload.public_key)
+        public_key = serialization.load_pem_public_key(payload.public_key.encode())
         if self.verify_signature(payload, public_key):
             # Add to pending transactions if signature is verified
             print(f'[Node {self.node_id}] Received transaction {payload.nonce} from {self.node_id_from_peer(peer)}')
