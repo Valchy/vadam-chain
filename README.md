@@ -170,3 +170,14 @@ Added an overlay, to change the max_peers variable of the community.
 Design a simple Push-based Gossip
 
 Preliminary benchmarks and Tests of our system
+
+## Next Steps
+
+1. Implement python logger
+2. Make simple push-based gossip
+3. Test everyone receives the message
+4. Scale with number of transactions
+5. Then implement blocks
+6. Create consensus parts for blocks
+7. Create API for application layer
+8. Add application layer
