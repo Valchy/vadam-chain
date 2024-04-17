@@ -50,6 +50,7 @@ class BlockchainNode(Blockchain):
         self.pending_txs = []
         self.finalized_txs = []
         self.balances = defaultdict(lambda: 1000)
+        #add structure to storing transactions in blocks
         self.key_pair = self.crypto.generate_key("medium")
         self.add_message_handler(Transaction, self.on_transaction)
 
