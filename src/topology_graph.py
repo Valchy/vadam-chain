@@ -37,7 +37,7 @@ def draw_graph(G, title, file_name):
     Draws the graph using matplotlib and saves it to a file.
     """
     plt.figure(figsize=(12, 10))
-    pos = nx.spring_layout(G, seed=42) # Using a fixed seed for reproducible layouts
+    pos = nx.circular_layout(G)  # Changed to use circular layout
     plt.title(title)
     nx.draw(G, pos, node_color='lightblue', with_labels=True, node_size=500, font_weight='bold', edge_color='gray')
     plt.savefig(file_name)
