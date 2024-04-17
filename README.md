@@ -171,13 +171,49 @@ Design a simple Push-based Gossip
 
 Preliminary benchmarks and Tests of our system
 
-## Next Steps
+# Blockchain Design Plan
 
-1. Implement python logger
-2. Make simple push-based gossip
-3. Test everyone receives the message
-4. Scale with number of transactions
-5. Then implement blocks
-6. Create consensus parts for blocks
-7. Create API for application layer
-8. Add application layer
+0. Make sure we use python logger everywhere!
+
+1. Run communities, we need 100 nodes with semi-dense topology.
+
+2. Once we have the network running we need to start testing making transactions.
+
+3. For this we implement push gossip algorithm.
+
+4. Using test library of IPv8 we test and make sure all nodes receive the transaction.
+
+5. Then we start scaling number of transactions, benchmarking and logging the results.
+
+6. Knowing the network's max capacity lets start adjusting the overlay configuration.
+
+7. We iterate and optimise the network as much as possible (pull-based gossip?).
+
+8. Now, let's start creating blocks. We will use proof-of-stake algorithm.
+
+9. We create the API layer and test API requests which will trigger transactions.
+
+10. A web application layer gets added which can interact with the API (backend).
+
+## API Layer
+
+Here we have a python web server which handles API responses and connects the backend, the blockchain network and the frontend. We keep it simple and limit the functionalities to the bear minimum.
+
+Main points:
+
+-   `POST /login` to authenticate
+-   `GET /users` returns all users (their addresses)
+-   `GET /balance` returns balance of authenticated user
+-   `GET /transactions` returns all approved transactions
+-   `POST /transaction` make a transaction from authenticated account
+
+## Frontend Layer
+
+This will be a simple, fast and responsive react app. The user will be able to authenticate with a user name and a password. We will have a set of predefined users e.g 100 generated as mentioned in the task.
+
+Main points:
+
+-   Authentication (login) screen
+-   Authenticated screen (dashboard to see balance, send and see transactions)
+-   See account balance (start with 100 USD by default)
+-   Send transaction from list of users (addresses)
