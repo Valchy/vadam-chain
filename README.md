@@ -144,8 +144,29 @@ python src/run.py 2 topologies/election.yaml election &
 python src/run.py 3 topologies/election.yaml election &
 ```
 
-Make use of these commands to execute the respective algorithms locally.
+# Blockchain Project Report
 
-## Acknowledgements
+In our project each member of our team made his impact. We tried to distribute tasks equally. Everyone did their best to complete their tasks.
 
-Special thanks to Bart Cox.
+Here are the tasks that we managed to do:
+
+Periodically create dummy transaction, include also signature and public key
+This was done with the crypto library in python, which overcomplicated the whole process and turns out was unnecessary as this functionality is already in ipv8.
+
+On receive: Validate the transaction: if signature is correct
+
+Merkle tree transaction storage
+Done via adding Block class in the blockchain.py and merkle_root and merkle_proof in the utils.py.
+
+Run locally multiple peers (~100 nodes)
+Done via changes in the docker-compose file.
+
+Report the topology (graph of the topology)
+Two graphics get generated using a python library. We plot 200 nodes and connected them sparsely or densely, depending on the algorithm used.
+
+Change the default rules for IPv8 to create sparse topology and very dense (all connected)
+Added an overlay, to change the max_peers variable of the community.
+
+Design a simple Push-based Gossip
+
+Preliminary benchmarks and Tests of our system
