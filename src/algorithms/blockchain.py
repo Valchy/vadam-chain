@@ -12,6 +12,13 @@ from ipv8.types import Peer
 from src.da_types import Blockchain, message_wrapper
 from src.merkle_util import merkle_root, merkle_proof
 
+from src.log.logging_config import *
+
+setup_logging()
+
+# Create logger
+logger = logging.getLogger('my_app')
+
 # We are using a custom dataclass implementation.
 dataclass = overwrite_dataclass(dataclass)
 
@@ -149,6 +156,7 @@ class BlockchainNode(Blockchain):
         self.sign_transaction(tx)
         self.counter += 1
         print(f'[Node {self.node_id}] Sending transaction {tx.nonce} to {self.node_id_from_peer(peer)}')
+        logger.info(f'[Node {self.node_id}] Sending transaction {tx.nonce} to {self.node_id_from_peer(peer)}')
         self.ez_send(peer, tx)
 
         if self.counter > self.max_messages:
@@ -196,7 +204,9 @@ class BlockchainNode(Blockchain):
         if self.executed_checks > 10:
             self.cancel_pending_task("check_txs")
             print(self.balances)
+            logger.info(self.balances)
             print(f'amount of transactions: {len(self.curr_block.transactions)}')
+            logger.info(f'amount of transactions: {len(self.curr_block.transactions)}')
             self.stop()
 
     def verify_block(self, block: Block) -> bool:
@@ -208,6 +218,7 @@ class BlockchainNode(Blockchain):
         if self.verify_signature(payload):
             # Add to pending transactions if signature is verified
             print(f'[Node {self.node_id}] Received transaction {payload.nonce} from {self.node_id_from_peer(peer)}')
+            logger.info(f'[Node {self.node_id}] Received transaction {payload.nonce} from {self.node_id_from_peer(peer)}')
             if (payload.sender, payload.nonce) not in [(tx.sender, tx.nonce) for tx in self.finalized_txs] and (
                     payload.sender, payload.nonce) not in [(tx.sender, tx.nonce) for tx in self.pending_txs]:
                 self.pending_txs.append(payload)
@@ -222,6 +233,7 @@ class BlockchainNode(Blockchain):
     async def on_block(self, peer: Peer, payload: Block) -> None:
         if self.verify_block(payload):
             print(f'[Node {self.node_id}] Received block {payload.number} from {self.node_id_from_peer(peer)}')
+            logger.info(f'[Node {self.node_id}] Received block {payload.number} from {self.node_id_from_peer(peer)}')
             self.blocks.append(payload)
             self.create_block()
         else:

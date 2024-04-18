@@ -1,3 +1,4 @@
+
 from asyncio import run
 
 from ipv8.configuration import ConfigBuilder, default_bootstrap_defs
@@ -6,8 +7,14 @@ from ipv8_service import IPv8
 
 from algorithms.blockchain import BlockchainNode
 
+from src.log.logging_config import *
 
+setup_logging()
+
+# Create logger
+logger = logging.getLogger('my_app')
 async def start_communities(peer_num, use_localhost=True) -> None:
+    logger.info('Community started')
     base_port = 9090
     for i in range(0, peer_num):
         event = create_event_with_signals()
