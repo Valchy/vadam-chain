@@ -18,7 +18,7 @@ dataclass = overwrite_dataclass(dataclass)
 
 @dataclass(
     msg_id=1
-)  # The value 1 identifies this message and must be unique per community.
+)
 class Transaction:
     sender: int
     receiver: int
@@ -30,7 +30,9 @@ class Transaction:
     def __post_init__(self):
         self.tx_id = hashlib.sha256(f'{self.sender}{self.receiver}{self.amount}{self.nonce}'.encode()).hexdigest()
 
-
+@dataclass(
+    msg_id=2
+)
 class Block:
     def __init__(self, number, prev_block_time, prev_block_hash, difficulty, target):
         self.transactions:list[Transaction] = []
@@ -82,10 +84,11 @@ class BlockchainNode(Blockchain):
         self.finalized_txs = []
         self.balances = defaultdict(lambda: 1000)
         self.blocks: Block = []
-        self.curr_block = Block(number=0, time=int(time.time()))
+
         self.difficulty = 115763819684279741274297652248676021157016744923290554136127638308692447723520
         self.target_block_time = 10
         self.puzzle_target = self.calculate_puzzle_target()
+        self.curr_block = Block(number=0, prev_block_time=time.time(), prev_block_hash='0', difficulty=self.difficulty, target=self.puzzle_target)
 
         #add structure to storing transactions in blocks
         self.key_pair = self.crypto.generate_key("medium")
@@ -98,7 +101,9 @@ class BlockchainNode(Blockchain):
         self.curr_block = Block(prev_block_hash=self.blocks[-1].hash,
                                 prev_block_time=self.blocks[-1].time,
                                 difficulty= self.difficulty,
-                                target=self.puzzle_target)
+                                target=self.puzzle_target,
+                                number=self.blocks[-1].number + 1)
+
 
     def calculate_difficulty(self):
         avg_block_time = 0
@@ -184,6 +189,10 @@ class BlockchainNode(Blockchain):
             print(self.balances)
             self.stop()
 
+    def verify_block(self, block: Block) -> bool:
+        # Verify block hash
+        return block.hash == block.mine()
+
     @message_wrapper(Transaction)
     async def on_transaction(self, peer: Peer, payload: Transaction) -> None:
         if self.verify_signature(payload):
@@ -192,7 +201,7 @@ class BlockchainNode(Blockchain):
             if (payload.sender, payload.nonce) not in [(tx.sender, tx.nonce) for tx in self.finalized_txs] and (
                     payload.sender, payload.nonce) not in [(tx.sender, tx.nonce) for tx in self.pending_txs]:
                 self.pending_txs.append(payload)
-                self.curr_block.add_transaction(payload)
+                self.process_pending_transactions()
         else:
 
             # Gossip to other nodes
