@@ -83,7 +83,7 @@ class BlockchainNode(Blockchain):
         self.pending_txs = []
         self.finalized_txs = []
         self.balances = defaultdict(lambda: 1000)
-        self.blocks: Block = []
+        self.blocks: list[Block] = []
 
         self.difficulty = 115763819684279741274297652248676021157016744923290554136127638308692447723520
         self.target_block_time = 10
