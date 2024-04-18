@@ -34,20 +34,26 @@ class Transaction:
     msg_id=2
 )
 class Block:
-    def __init__(self, number, prev_block_time, prev_block_hash, difficulty, target):
-        self.transactions:list[Transaction] = []
-        self.number = number
+    number: int
+    prev_block_time: int
+    prev_block_hash: str
+    difficulty: int
+    puzzle_target: int
+    transactions: list[Transaction]
+
+    def __post_init__(self):
+        # self.transactions:list[Transaction] = []
         self.hash = 0
         self.timestamp = 0
-        self.prev_block_hash = prev_block_hash
-        self.difficulty = difficulty
-        self.target = target
+        #self.prev_block_hash = prev_block_hash
+        #self.difficulty = difficulty
+        #self.target = target
         self.nonce = 0
         self.hashing_value = ""
+        #self.prev_block_time = prev_block_time
 
     def get_hashing_value(self):
         return "".join([tx.tx_id for tx in self.transactions]).join(str(self.nonce))
-        
 
     def add_transaction(self, transaction: Transaction):
         if len(self.transactions) < 10:
@@ -56,12 +62,15 @@ class Block:
             pass
 
     def mine(self):
+        now = time.time()
         while True:
             self.hashing_value = self.get_hashing_value()
             self.hash = hashlib.sha256(self.hashing_value.encode()).hexdigest()
             if int(self.hash, 16) < self.target:
+                self.timestamp = int(self.prev_block_time + time.time() - now)
                 return self.hash
             self.nonce += 1
+
         
 
 
@@ -88,7 +97,7 @@ class BlockchainNode(Blockchain):
         self.difficulty = 115763819684279741274297652248676021157016744923290554136127638308692447723520
         self.target_block_time = 10
         self.puzzle_target = self.calculate_puzzle_target()
-        self.curr_block = Block(number=0, prev_block_time=time.time(), prev_block_hash='0', difficulty=self.difficulty, target=self.puzzle_target)
+        self.curr_block = Block(0, time.time(), '0', self.difficulty, self.puzzle_target, [])
 
         #add structure to storing transactions in blocks
         self.key_pair = self.crypto.generate_key("medium")
@@ -187,6 +196,7 @@ class BlockchainNode(Blockchain):
         if self.executed_checks > 10:
             self.cancel_pending_task("check_txs")
             print(self.balances)
+            print(f'amount of transactions: {len(self.curr_block.transactions)}')
             self.stop()
 
     def verify_block(self, block: Block) -> bool:
