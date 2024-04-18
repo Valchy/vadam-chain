@@ -80,8 +80,8 @@ class BlockchainNode(Blockchain):
         self.max_messages = 5
         self.executed_checks = 0
 
-        self.pending_txs = []
-        self.finalized_txs = []
+        self.pending_txs:list[Transaction] = []
+        self.finalized_txs:list[Transaction] = []
         self.balances = defaultdict(lambda: 1000)
         self.blocks: list[Block] = []
 
