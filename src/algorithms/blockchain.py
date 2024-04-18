@@ -9,8 +9,8 @@ from ipv8.community import CommunitySettings
 from ipv8.messaging.payload_dataclass import overwrite_dataclass
 from ipv8.types import Peer
 
-from da_types import Blockchain, message_wrapper
-from merkle_util import merkle_root, merkle_proof
+from src.da_types import Blockchain, message_wrapper
+from src.merkle_util import merkle_root, merkle_proof
 
 # We are using a custom dataclass implementation.
 dataclass = overwrite_dataclass(dataclass)
