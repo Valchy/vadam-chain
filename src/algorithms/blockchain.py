@@ -99,7 +99,7 @@ class BlockchainNode(Blockchain):
         self.calculate_difficulty()
         self.calculate_puzzle_target()
         self.curr_block = Block(prev_block_hash=self.blocks[-1].hash,
-                                prev_block_time=self.blocks[-1].time,
+                                prev_block_time=self.blocks[-1].timestamp,
                                 difficulty= self.difficulty,
                                 target=self.puzzle_target,
                                 number=self.blocks[-1].number + 1)
