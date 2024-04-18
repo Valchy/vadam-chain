@@ -189,7 +189,7 @@ Preliminary benchmarks and Tests of our system
 
 7. We iterate and optimise the network as much as possible (pull-based gossip?).
 
-8. Now, let's start creating blocks. We will use proof-of-stake algorithm.
+8. Now, let's start creating blocks. We will use proof-of-work algorithm.
 
 9. We create the API layer and test API requests which will trigger transactions.
 
