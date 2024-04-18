@@ -114,7 +114,7 @@ class BlockchainNode(Blockchain):
         self.difficulty = self.difficulty * self.target_block_time / avg_block_time
 
     def calculate_puzzle_target(self):
-        max_value = hex(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff)
+        max_value = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
         return max_value - self.difficulty
 
 
