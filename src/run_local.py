@@ -7,7 +7,7 @@ from ipv8_service import IPv8
 
 from algorithms.blockchain import BlockchainNode
 
-from src.log.logging_config import *
+from log.logging_config import *
 
 setup_logging()
 

@@ -4,15 +4,15 @@ import random
 from collections import defaultdict
 from dataclasses import dataclass
 import time
+import asyncio
 
 from ipv8.community import CommunitySettings
 from ipv8.messaging.payload_dataclass import overwrite_dataclass
 from ipv8.types import Peer
 
-from src.da_types import Blockchain, message_wrapper
-from src.merkle_util import merkle_root, merkle_proof
-
-from src.log.logging_config import *
+from da_types import Blockchain, message_wrapper
+from merkle_util import merkle_root, merkle_proof
+from log.logging_config import *
 
 setup_logging()
 
@@ -61,6 +61,7 @@ class Block:
         self.hashing_value = ""
         # self.prev_block_time = prev_block_time
 
+
     def get_hashing_value(self):
         return "".join([tx.tx_id for tx in self.transactions]).join(str(self.nonce))
 
@@ -70,11 +71,13 @@ class Block:
         else:
             pass
 
-    def mine(self):
+    async def mine(self):
         now = time.time()
+        loop = asyncio.get_event_loop()
         while True:
             self.hashing_value = self.get_hashing_value()
-            self.hash = hashlib.sha256(self.hashing_value.encode()).hexdigest()
+            self.hash = await loop.run_in_executor(None, hashlib.sha256, self.hashing_value.encode())
+            self.hash = self.hash.hexdigest()
             if int(self.hash, 16) < self.target:
                 self.timestamp = int(self.prev_block_time + time.time() - now)
                 return self.hash
@@ -97,7 +100,7 @@ class BlockchainNode(Blockchain):
         self.balances = defaultdict(lambda: 1000)
         self.blocks: list[Block] = []
 
-        self.difficulty = 115763819684279741274297652248676021157016744923290554136127638308692447723520
+        self.difficulty:int = 115763819684279741274297652248676021157016744923290554136127638308692447723520
         self.target_block_time = 10
         self.puzzle_target = self.calculate_puzzle_target()
         self.curr_block = Block(0, time.time(), '0', self.difficulty, self.puzzle_target, [])
@@ -141,6 +144,7 @@ class BlockchainNode(Blockchain):
                                               self.serializer.pack_serializable(tx_copy),
                                               transaction.signature)
 
+
     def create_transaction(self):
         peer = random.choice([i for i in self.get_peers() if self.node_id_from_peer(i) % 2 == 1])
         peer_id = self.node_id_from_peer(peer)
@@ -148,10 +152,9 @@ class BlockchainNode(Blockchain):
         tx.public_key_bin = self.my_peer.public_key.key_to_bin()
         self.sign_transaction(tx)
         self.counter += 1
-        print(f'[Node {self.node_id}] Sending transaction {tx.nonce} to {self.node_id_from_peer(peer)}')
+        logger.info(f'[Node {self.node_id}] Sending transaction {tx.nonce} to {self.node_id_from_peer(peer)}')
         logger.info(f'[Node {self.node_id}] Sending transaction {tx.nonce} to {self.node_id_from_peer(peer)}')
         self.ez_send(peer, tx)
-
         if self.counter > self.max_messages:
             self.cancel_pending_task("tx_create")
             self.stop()
@@ -202,9 +205,12 @@ class BlockchainNode(Blockchain):
             logger.info(f'amount of transactions: {len(self.curr_block.transactions)}')
             self.stop()
 
+
     def verify_block(self, block: Block) -> bool:
-        # Verify block hash
-        return block.hash == block.mine()
+        if block.hash != hashlib.sha256(block.get_hashing_value().encode()).hexdigest():
+            return False
+        else:
+            return True
 
     @message_wrapper(Transaction)
     async def on_transaction(self, peer: Peer, payload: Transaction) -> None:
@@ -233,13 +239,17 @@ class BlockchainNode(Blockchain):
         else:
             pass
 
-    @message_wrapper(Block)
-    async def on_block(self, peer: Peer, payload: Block) -> None:
-        if self.verify_block(payload):
-            print(f'[Node {self.node_id}] Received block {payload.number} from {self.node_id_from_peer(peer)}')
-            logger.info(f'[Node {self.node_id}] Received block {payload.number} from {self.node_id_from_peer(peer)}')
-            self.blocks.append(payload)
-            self.create_block()
-        else:
-            for peer in [i for i in self.get_peers() if self.node_id_from_peer(i) % 2 == 0]:
-                self.ez_send(peer, payload)
+
+@message_wrapper(Block)
+async def on_block(self, peer: Peer, payload: Block) -> None:
+    if self.verify_block(payload):
+        print(f'[Node {self.node_id}] Received block {payload.number} from {self.node_id_from_peer(peer)}')
+        logger.info(f'[Node {self.node_id}] Received block {payload.number} from {self.node_id_from_peer(peer)}')
+        if payload.number == self.blocks[-1].number + 1:
+            if(verify_block(payload)):
+                self.blocks.append(payload)
+                self.create_block()
+            
+    for peer in [i for i in self.get_peers() if self.node_id_from_peer(i) % 2 == 0]:
+        self.ez_send(peer, payload)
+ 
