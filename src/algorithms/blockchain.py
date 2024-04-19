@@ -246,9 +246,9 @@ async def on_block(self, peer: Peer, payload: Block) -> None:
         print(f'[Node {self.node_id}] Received block {payload.number} from {self.node_id_from_peer(peer)}')
         logger.info(f'[Node {self.node_id}] Received block {payload.number} from {self.node_id_from_peer(peer)}')
         if payload.number == self.blocks[-1].number + 1:
-            if(verify_block(payload)):
                 self.blocks.append(payload)
                 self.create_block()
+           
             
     for peer in [i for i in self.get_peers() if self.node_id_from_peer(i) % 2 == 0]:
         self.ez_send(peer, payload)
