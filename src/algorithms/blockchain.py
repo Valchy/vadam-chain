@@ -51,15 +51,10 @@ class Block:
     transactions: list[Transaction]
 
     def __post_init__(self):
-        # self.transactions:list[Transaction] = []
         self.hash = 0
         self.timestamp = 0
-        # self.prev_block_hash = prev_block_hash
-        # self.difficulty = difficulty
-        # self.target = target
         self.nonce = 0
         self.hashing_value = ""
-        # self.prev_block_time = prev_block_time
 
 
     def get_hashing_value(self):
@@ -83,9 +78,10 @@ class Block:
                 return self.hash
             self.nonce += 1
 
-    # def verify_transaction(self, transaction):
-    #     return merkle_proof(transaction.tx_id, [tx.tx_id for tx in self.transactions])
 
+# delete from pending txs those transactions which were included in the mined block
+# rm ttl
+# broadcast all pending txs to all peers
 
 class BlockchainNode(Blockchain):
 
@@ -105,7 +101,6 @@ class BlockchainNode(Blockchain):
         self.puzzle_target = self.calculate_puzzle_target()
         self.curr_block = Block(0, time.time(), '0', self.difficulty, self.puzzle_target, [])
 
-        # add structure to storing transactions in blocks
         self.key_pair = self.crypto.generate_key("medium")
         self.add_message_handler(Transaction, self.on_transaction)
 
@@ -136,7 +131,6 @@ class BlockchainNode(Blockchain):
 
     def verify_signature(self, transaction: Transaction) -> bool:
 
-        # create transaction copy without signature and then verify
         tx_copy = copy.deepcopy(transaction)
         tx_copy.signature = b''
         public_key = self.crypto.key_from_public_bin(tx_copy.public_key_bin)
@@ -170,15 +164,11 @@ class BlockchainNode(Blockchain):
 
     def on_start(self):
         if self.node_id % 2 == 0:
-            #  Run client
             self.start_client()
         else:
-            # Run validator
             self.start_validator()
 
     def start_client(self):
-        # Create transaction and send to random validator
-        # Or put node_id
         self.register_task("tx_create",
                            self.create_transaction, delay=1,
                            interval=1)
@@ -188,7 +178,6 @@ class BlockchainNode(Blockchain):
 
     def check_transactions(self):
         for tx in self.pending_txs:
-            # block = self.find_block_for_transaction(tx)
             if self.balances[tx.sender] - tx.amount >= 0:
                 self.balances[tx.sender] -= tx.amount
                 self.balances[tx.receiver] += tx.amount
@@ -207,7 +196,8 @@ class BlockchainNode(Blockchain):
 
 
     def verify_block(self, block: Block) -> bool:
-        if block.hash != hashlib.sha256(block.get_hashing_value().encode()).hexdigest():
+        if block.hash != hashlib.sha256(block.get_hashing_value().encode()).hexdigest()\
+        and int(block.hash, 16) < self.target:
             return False
         else:
             return True
@@ -215,8 +205,6 @@ class BlockchainNode(Blockchain):
     @message_wrapper(Transaction)
     async def on_transaction(self, peer: Peer, payload: Transaction) -> None:
         if self.verify_signature(payload):
-
-            # Add to pending transactions if signature is verified
             print(f'transaction nonce:{payload.nonce}')
             logger.info(f'transaction nonce:{payload.nonce}')
             print(f'[Node {self.node_id}] Received transaction {payload.nonce} from {self.node_id_from_peer(peer)}')
@@ -231,7 +219,6 @@ class BlockchainNode(Blockchain):
 
                 if payload.ttl > 0:
                     payload.ttl -= 1
-                    # Gossip to other nodes
                     for peer in [i for i in self.get_peers() if self.node_id_from_peer(i) % 2 == 1]:
                         self.ez_send(peer, payload)
                 else:
@@ -245,9 +232,28 @@ async def on_block(self, peer: Peer, payload: Block) -> None:
     if self.verify_block(payload):
         print(f'[Node {self.node_id}] Received block {payload.number} from {self.node_id_from_peer(peer)}')
         logger.info(f'[Node {self.node_id}] Received block {payload.number} from {self.node_id_from_peer(peer)}')
-        if payload.number == self.blocks[-1].number + 1:
-                self.blocks.append(payload)
-                self.create_block()
+        
+        # pull gossip
+        if (payload.number - self.blocks[-1].number) == 1:
+            self.blocks.append(payload)
+            self.create_block()
+            
+            # broadcast to all peers
+            for peer in self.get_peers():
+                self.ez_send(peer, payload)
+        elif (payload.number - self.blocks[-1].number) < 1:
+            # broadcast to all peers
+            for peer in self.get_peers():
+                self.ez_send(peer, payload)
+        else:
+            # send interval of numbers to request missing blocks
+            # self.ez_send(peer, )
+            pass
+
+
+        # if payload.number == self.blocks[-1].number + 1:
+        #         self.blocks.append(payload)
+        #         self.create_block()
            
             
     for peer in [i for i in self.get_peers() if self.node_id_from_peer(i) % 2 == 0]:
