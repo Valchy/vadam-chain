@@ -60,11 +60,12 @@ class Block:
     def get_hashing_value(self):
         return "".join([tx.tx_id for tx in self.transactions]).join(str(self.nonce))
 
-    def add_transaction(self, transaction: Transaction):
+    def add_transaction(self, transaction: Transaction) -> bool:
         if len(self.transactions) < 10:
             self.transactions.append(transaction)
+            return True
         else:
-            pass
+            return False
 
     async def mine(self):
         now = time.time()
@@ -172,14 +173,18 @@ class BlockchainNode(Blockchain):
             self.stop()
             return
 
-
     def process_pending_transactions(self):
-        if len(self.pending_txs) < 10:
-            for txs in self.pending_txs:
-                self.curr_block.add_transaction(txs)
-        else:
-            for i in range(10):
-                self.curr_block.add_transaction(self.pending_txs[i])
+        for txs in self.pending_txs:
+            result = self.curr_block.add_transaction(txs)
+            if result == False:
+                return
+
+        # if len(self.pending_txs) < 10:
+        #     for txs in self.pending_txs:
+        #         self.curr_block.add_transaction(txs)
+        # else:
+        #     for i in range(10):
+        #         self.curr_block.add_transaction(self.pending_txs[i])
 
     def on_start(self):
         if self.node_id % 2 == 0:
@@ -238,7 +243,11 @@ class BlockchainNode(Blockchain):
 
                 if payload.ttl > 0:
                     payload.ttl -= 1
-                    for peer in [i for i in self.get_peers() if self.node_id_from_peer(i) % 2 == 1]:
+
+                    # we send here to all neighbours
+                    for peer in self.get_peers():
+                        print(f'[Node {self.node_id}] Send transaction {payload.nonce} to [Node {self.node_id_from_peer(peer)}]')
+                        logger.info(f'[Node {self.node_id}] Send transaction {payload.nonce} to [Node {self.node_id_from_peer(peer)}]')
                         self.ez_send(peer, payload)
                 else:
                     pass
