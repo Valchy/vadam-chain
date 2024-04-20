@@ -142,6 +142,7 @@ class BlockchainNode(Blockchain):
 
         tx_copy = copy.deepcopy(transaction)
         tx_copy.signature = b''
+        # rm ttl before validation
         public_key = self.crypto.key_from_public_bin(tx_copy.public_key_bin)
         return self.crypto.is_valid_signature(public_key,
                                               self.serializer.pack_serializable(tx_copy),
@@ -152,7 +153,9 @@ class BlockchainNode(Blockchain):
         peer_id = self.node_id_from_peer(peer)
         tx = Transaction(self.node_id, peer_id, 10, b'', b'', self.counter)
         tx.public_key_bin = self.my_peer.public_key.key_to_bin()
+        # remove ttl before signing
         self.sign_transaction(tx)
+        # add ttl
         self.counter += 1
         return tx
 
