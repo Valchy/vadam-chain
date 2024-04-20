@@ -87,12 +87,12 @@ class Block:
 )
 class BlocksRequest:
     sender: int
-    receiver: int
-    start_block_id: int
-    start_block_id: int
+    start_block_number: int
+    end_block_number: int
 
     def __post_init__(self):
-        self.tx_id = hashlib.sha256(f'{self.sender}{self.receiver}{self.start_block_id}{self.end_block_id}'.encode()).hexdigest()
+        self.tx_id = hashlib.sha256(f'{self.sender}{self.start_block_number}{self.end_block_number}'.encode()).hexdigest()
+
 class BlockchainNode(Blockchain):
 
     def __init__(self, settings: CommunitySettings) -> None:
@@ -149,7 +149,6 @@ class BlockchainNode(Blockchain):
                                               self.serializer.pack_serializable(tx_copy),
                                               transaction.signature)
 
-
     def create_transaction(self, peer):
         peer_id = self.node_id_from_peer(peer)
         tx = Transaction(self.node_id, peer_id, 10, b'', b'', self.counter)
@@ -178,13 +177,6 @@ class BlockchainNode(Blockchain):
             result = self.curr_block.add_transaction(txs)
             if result == False:
                 return
-
-        # if len(self.pending_txs) < 10:
-        #     for txs in self.pending_txs:
-        #         self.curr_block.add_transaction(txs)
-        # else:
-        #     for i in range(10):
-        #         self.curr_block.add_transaction(self.pending_txs[i])
 
     def on_start(self):
         if self.node_id % 2 == 0:
@@ -218,7 +210,6 @@ class BlockchainNode(Blockchain):
             print(f'amount of transactions: {len(self.curr_block.transactions)}')
             logger.info(f'amount of transactions: {len(self.curr_block.transactions)}')
             self.stop()
-
 
     def verify_block(self, block: Block) -> bool:
         if block.hash != hashlib.sha256(block.get_hashing_value().encode()).hexdigest()\
@@ -254,36 +245,50 @@ class BlockchainNode(Blockchain):
         else:
             pass
 
+    def create_blocks_request(self, sender, start_block_number, end_block_number):
+        request = BlocksRequest(sender, start_block_number, end_block_number)
+        return request
 
-@message_wrapper(Block)
-async def on_block(self, peer: Peer, payload: Block) -> None:
-    if self.verify_block(payload):
-        print(f'[Node {self.node_id}] Received block {payload.number} from [Node {self.node_id_from_peer(peer)}]')
-        logger.info(f'[Node {self.node_id}] Received block {payload.number} from [Node {self.node_id_from_peer(peer)}]')
-        
-        # pull gossip
-        if (payload.number - self.blocks[-1].number) == 1:
-            self.blocks.append(payload)
-            self.create_block()
-            
-            # broadcast to all peers
-            for peer in self.get_peers():
-                self.ez_send(peer, payload)
-        elif (payload.number - self.blocks[-1].number) < 1:
-            # broadcast to all peers
-            for peer in self.get_peers():
-                self.ez_send(peer, payload)
-        else:
-            # send interval of numbers to request missing blocks
-            # self.ez_send(peer, )
-            pass
+    def clean_pending_txs(self, block):
+        # we need to remove from pending_txs transactions that were already included in mined block
+        cleaned_pending_txs = []
+        for tx in self.pending_txs:
+            if tx not in block.transactions:
+                cleaned_pending_txs.append(tx)
+        self.pending_txs = cleaned_pending_txs
 
+    @message_wrapper(Block)
+    async def on_block(self, peer: Peer, payload: Block) -> None:
+        if self.verify_block(payload):
+            print(f'[Node {self.node_id}] Received block {payload.number} from [Node {self.node_id_from_peer(peer)}]')
+            logger.info(f'[Node {self.node_id}] Received block {payload.number} from [Node {self.node_id_from_peer(peer)}]')
 
-        # if payload.number == self.blocks[-1].number + 1:
-        #         self.blocks.append(payload)
-        #         self.create_block()
-           
-    #
-    # for peer in [i for i in self.get_peers() if self.node_id_from_peer(i) % 2 == 0]:
-    #     self.ez_send(peer, payload)
- 
+            # pull gossip
+            if (payload.number - self.blocks[-1].number) == 1:
+                # we received block  that we can append
+                self.blocks.append(payload)
+                self.clean_pending_txs(payload)
+                self.create_block()
+
+                # broadcast to all peers
+                for peer in self.get_peers():
+                    self.ez_send(peer, payload)
+            elif (payload.number - self.blocks[-1].number) < 1:
+                # we already have this block, then
+                # broadcast to all peers
+                for peer in self.get_peers():
+                    self.ez_send(peer, payload)
+            else:
+                # we received block that we don't have
+                # and it cannot be appended
+                start_block_number = self.blocks[-1].number
+                end_block_number = payload.number
+                request_message = self.create_block_request(self.node_id, start_block_number, end_block_number)
+                for peer in self.get_peers():
+                    self.ez_send(peer, request_message)
+
+    @message_wrapper(BlocksRequest)
+    async def on_blocks_request(self, peer: Peer, payload: BlocksRequest) -> None:
+        last_possible_block_number = min(payload.end_block_number+1, self.blocks[-1].number)
+        for i in range(payload.start_block_number, last_possible_block_number):
+            self.ez_send(payload.sender, self.blocks[i])
