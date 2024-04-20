@@ -10,9 +10,9 @@ from ipv8.community import CommunitySettings
 from ipv8.messaging.payload_dataclass import overwrite_dataclass
 from ipv8.types import Peer
 
-from da_types import Blockchain, message_wrapper
-from merkle_util import merkle_root, merkle_proof
-from log.logging_config import *
+from src.da_types import Blockchain, message_wrapper
+from src.merkle_util import merkle_root, merkle_proof
+from src.log.logging_config import *
 
 setup_logging()
 
@@ -79,10 +79,19 @@ class Block:
             self.nonce += 1
 
 
-# delete from pending txs those transactions which were included in the mined block
-# rm ttl
-# broadcast all pending txs to all peers
 
+
+@dataclass(
+    msg_id=3
+)
+class BlocksRequest:
+    sender: int
+    receiver: int
+    start_block_id: int
+    start_block_id: int
+
+    def __post_init__(self):
+        self.tx_id = hashlib.sha256(f'{self.sender}{self.receiver}{self.start_block_id}{self.end_block_id}'.encode()).hexdigest()
 class BlockchainNode(Blockchain):
 
     def __init__(self, settings: CommunitySettings) -> None:
@@ -139,20 +148,27 @@ class BlockchainNode(Blockchain):
                                               transaction.signature)
 
 
-    def create_transaction(self):
-        peer = random.choice([i for i in self.get_peers() if self.node_id_from_peer(i) % 2 == 1])
+    def create_transaction(self, peer):
         peer_id = self.node_id_from_peer(peer)
         tx = Transaction(self.node_id, peer_id, 10, b'', b'', self.counter)
         tx.public_key_bin = self.my_peer.public_key.key_to_bin()
         self.sign_transaction(tx)
         self.counter += 1
-        logger.info(f'[Node {self.node_id}] Sending transaction {tx.nonce} to {self.node_id_from_peer(peer)}')
-        logger.info(f'[Node {self.node_id}] Sending transaction {tx.nonce} to {self.node_id_from_peer(peer)}')
+        return tx
+
+    def send_transaction(self, peer):
+        tx = self.create_transaction(peer)
+
+        logger.info(f'[Node {self.node_id}] Sending transaction {tx.nonce} to [Node {self.node_id_from_peer(peer)}]')
+        logger.info(f'[Node {self.node_id}] Sending transaction {tx.nonce} to [Node {self.node_id_from_peer(peer)}]')
         self.ez_send(peer, tx)
+
+        # ?
         if self.counter > self.max_messages:
             self.cancel_pending_task("tx_create")
             self.stop()
             return
+
 
     def process_pending_transactions(self):
         if len(self.pending_txs) < 10:
@@ -169,8 +185,9 @@ class BlockchainNode(Blockchain):
             self.start_validator()
 
     def start_client(self):
+        first_peer = random.choice([i for i in self.get_peers()])
         self.register_task("tx_create",
-                           self.create_transaction, delay=1,
+                           self.send_transaction(first_peer), delay=1,
                            interval=1)
 
     def start_validator(self):
@@ -207,9 +224,8 @@ class BlockchainNode(Blockchain):
         if self.verify_signature(payload):
             print(f'transaction nonce:{payload.nonce}')
             logger.info(f'transaction nonce:{payload.nonce}')
-            print(f'[Node {self.node_id}] Received transaction {payload.nonce} from {self.node_id_from_peer(peer)}')
-            logger.info(
-                f'[Node {self.node_id}] Received transaction {payload.nonce} from {self.node_id_from_peer(peer)}')
+            print(f'[Node {self.node_id}] Received transaction {payload.nonce} from [Node {self.node_id_from_peer(peer)}]')
+            logger.info(f'[Node {self.node_id}] Received transaction {payload.nonce} from [Node {self.node_id_from_peer(peer)}]')
 
             if (payload.sender, payload.nonce) not in [(tx.sender, tx.nonce) for tx in self.finalized_txs] and (
                     payload.sender, payload.nonce) not in [(tx.sender, tx.nonce) for tx in self.pending_txs]:
@@ -230,8 +246,8 @@ class BlockchainNode(Blockchain):
 @message_wrapper(Block)
 async def on_block(self, peer: Peer, payload: Block) -> None:
     if self.verify_block(payload):
-        print(f'[Node {self.node_id}] Received block {payload.number} from {self.node_id_from_peer(peer)}')
-        logger.info(f'[Node {self.node_id}] Received block {payload.number} from {self.node_id_from_peer(peer)}')
+        print(f'[Node {self.node_id}] Received block {payload.number} from [Node {self.node_id_from_peer(peer)}]')
+        logger.info(f'[Node {self.node_id}] Received block {payload.number} from [Node {self.node_id_from_peer(peer)}]')
         
         # pull gossip
         if (payload.number - self.blocks[-1].number) == 1:
@@ -255,7 +271,7 @@ async def on_block(self, peer: Peer, payload: Block) -> None:
         #         self.blocks.append(payload)
         #         self.create_block()
            
-            
-    for peer in [i for i in self.get_peers() if self.node_id_from_peer(i) % 2 == 0]:
-        self.ez_send(peer, payload)
+    #
+    # for peer in [i for i in self.get_peers() if self.node_id_from_peer(i) % 2 == 0]:
+    #     self.ez_send(peer, payload)
  
