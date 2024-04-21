@@ -56,7 +56,6 @@ class Block:
         self.nonce = 0
         self.hashing_value = ""
 
-
     def get_hashing_value(self):
         return "".join([tx.tx_id for tx in self.transactions]).join(str(self.nonce))
 
@@ -113,6 +112,8 @@ class BlockchainNode(Blockchain):
 
         self.key_pair = self.crypto.generate_key("medium")
         self.add_message_handler(Transaction, self.on_transaction)
+        self.add_message_handler(Block, self.on_block)
+        self.add_message_handler(BlocksRequest, self.on_blocks_request)
 
     def create_block(self):
         self.calculate_difficulty()
@@ -179,7 +180,7 @@ class BlockchainNode(Blockchain):
                 return
 
     def on_start(self):
-        if self.node_id % 2 == 0:
+        if self.node_id == 0:
             self.start_client()
         else:
             self.start_validator()
@@ -268,6 +269,8 @@ class BlockchainNode(Blockchain):
                 # we received block  that we can append
                 self.blocks.append(payload)
                 self.clean_pending_txs(payload)
+
+                # ?
                 self.create_block()
 
                 # broadcast to all peers
@@ -281,7 +284,7 @@ class BlockchainNode(Blockchain):
             else:
                 # we received block that we don't have
                 # and it cannot be appended
-                start_block_number = self.blocks[-1].number
+                start_block_number = self.blocks[-1].number+1
                 end_block_number = payload.number
                 request_message = self.create_block_request(self.node_id, start_block_number, end_block_number)
                 for peer in self.get_peers():
