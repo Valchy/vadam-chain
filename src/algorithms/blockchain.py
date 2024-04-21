@@ -153,7 +153,6 @@ class BlockchainNode(Blockchain):
         tx.public_key_bin = self.my_peer.public_key.key_to_bin()
         self.sign_transaction(tx)
         self.counter += 1
-        logger.info(f'[Node {self.node_id}] Sending transaction {tx.nonce} to {self.node_id_from_peer(peer)}')
         self.pending_txs.append(tx)
         for peer in list(self.get_peers()):
             self.ez_send(peer, tx)
