@@ -1,6 +1,7 @@
 import copy
 import hashlib
 import random
+from binascii import hexlify
 from collections import defaultdict
 from dataclasses import dataclass
 import time
@@ -97,19 +98,21 @@ class BlockchainNode(Blockchain):
     def __init__(self, settings: CommunitySettings) -> None:
         super().__init__(settings)
         self.counter = 1
-        self.max_messages = 5
+        self.max_messages = 1
         self.executed_checks = 0
 
         self.pending_txs: list[Transaction] = []
         self.finalized_txs: list[Transaction] = []
         self.balances = defaultdict(lambda: 1000)
         self.blocks: list[Block] = []
+        self.collision_num: int = 0
 
         self.difficulty:int = 115763819684279741274297652248676021157016744923290554136127638308692447723520
         self.target_block_time = 10
         self.puzzle_target = self.calculate_puzzle_target()
         self.curr_block = Block(0, time.time(), '0', self.difficulty, self.puzzle_target, [])
 
+        # add structure to storing transactions in blocks
         self.key_pair = self.crypto.generate_key("medium")
         self.add_message_handler(Transaction, self.on_transaction)
         self.add_message_handler(Block, self.on_block)
@@ -137,37 +140,34 @@ class BlockchainNode(Blockchain):
         return max_value - self.difficulty
 
     def sign_transaction(self, transaction: Transaction) -> None:
+        initial_ttl = transaction.ttl
+        transaction.ttl = 0
         transaction.signature = self.crypto.create_signature(self.my_peer.key,
                                                              self.serializer.pack_serializable(transaction))
+        transaction.ttl = initial_ttl
 
     def verify_signature(self, transaction: Transaction) -> bool:
 
+        # create transaction copy without signature and then verify
         tx_copy = copy.deepcopy(transaction)
         tx_copy.signature = b''
-        # rm ttl before validation
+        tx_copy.ttl = 0
         public_key = self.crypto.key_from_public_bin(tx_copy.public_key_bin)
         return self.crypto.is_valid_signature(public_key,
                                               self.serializer.pack_serializable(tx_copy),
                                               transaction.signature)
 
-    def create_transaction(self, peer):
+
+    def create_transaction(self):
+        peer = random.choice([i for i in self.get_peers()])
         peer_id = self.node_id_from_peer(peer)
         tx = Transaction(self.node_id, peer_id, 10, b'', b'', self.counter)
         tx.public_key_bin = self.my_peer.public_key.key_to_bin()
-        # remove ttl before signing
         self.sign_transaction(tx)
-        # add ttl
         self.counter += 1
-        return tx
-
-    def send_transaction(self, peer):
-        tx = self.create_transaction(peer)
-
-        logger.info(f'[Node {self.node_id}] Sending transaction {tx.nonce} to [Node {self.node_id_from_peer(peer)}]')
-        logger.info(f'[Node {self.node_id}] Sending transaction {tx.nonce} to [Node {self.node_id_from_peer(peer)}]')
-        self.ez_send(peer, tx)
-
-        # ?
+        self.pending_txs.append(tx)
+        for peer in list(self.get_peers()):
+            self.ez_send(peer, tx)
         if self.counter > self.max_messages:
             self.cancel_pending_task("tx_create")
             self.stop()
@@ -180,15 +180,21 @@ class BlockchainNode(Blockchain):
                 return
 
     def on_start(self):
-        if self.node_id == 0:
+        if  self.node_id == 0:
             self.start_client()
-        else:
-            self.start_validator()
+        self.start_validator()
+        # if self.node_id % 2 == 0:
+        #     #  Run client
+        #     self.start_client()
+        # else:
+        #     # Run validator
+        #     self.start_validator()
 
     def start_client(self):
-        first_peer = random.choice([i for i in self.get_peers()])
+        # Create transaction and send to random validator
+        # Or put node_id
         self.register_task("tx_create",
-                           self.send_transaction(first_peer), delay=1,
+                           self.create_transaction, delay=1,
                            interval=1)
 
     def start_validator(self):
@@ -196,6 +202,7 @@ class BlockchainNode(Blockchain):
 
     def check_transactions(self):
         for tx in self.pending_txs:
+            # block = self.find_block_for_transaction(tx)
             if self.balances[tx.sender] - tx.amount >= 0:
                 self.balances[tx.sender] -= tx.amount
                 self.balances[tx.receiver] += tx.amount
@@ -204,12 +211,15 @@ class BlockchainNode(Blockchain):
 
         self.executed_checks += 1
 
-        if self.executed_checks > 10:
+        if self.executed_checks > 30:
             self.cancel_pending_task("check_txs")
-            print(self.balances)
-            logger.info(self.balances)
+            balances_output = ', '.join([f'({key}, {value})' for key, value in self.balances.items()])
+            print(f'balances:  {balances_output}')
+            logger.info(f'balances:  {balances_output}')
             print(f'amount of transactions: {len(self.curr_block.transactions)}')
-            logger.info(f'amount of transactions: {len(self.curr_block.transactions)}')
+            # logger.info(f'amount of transactions: {len(self.curr_block.transactions)}')
+            logger.info(f'node id: {self.node_id}, self.pending_txs length: {len(self.pending_txs)}, '
+                f'self.finalized_txs length: {len(self.finalized_txs)}, number of collision: {self.collision_num}')
             self.stop()
 
     def verify_block(self, block: Block) -> bool:
@@ -221,30 +231,30 @@ class BlockchainNode(Blockchain):
 
     @message_wrapper(Transaction)
     async def on_transaction(self, peer: Peer, payload: Transaction) -> None:
+        print(self.node_id, payload.ttl)
         if self.verify_signature(payload):
+
+            # Add to pending transactions if signature is verified
             print(f'transaction nonce:{payload.nonce}')
             logger.info(f'transaction nonce:{payload.nonce}')
-            print(f'[Node {self.node_id}] Received transaction {payload.nonce} from [Node {self.node_id_from_peer(peer)}]')
-            logger.info(f'[Node {self.node_id}] Received transaction {payload.nonce} from [Node {self.node_id_from_peer(peer)}]')
-
-            if (payload.sender, payload.nonce) not in [(tx.sender, tx.nonce) for tx in self.finalized_txs] and (
-                    payload.sender, payload.nonce) not in [(tx.sender, tx.nonce) for tx in self.pending_txs]:
-
+            print(f'[Node {self.node_id}] Received transaction {payload.nonce} from {self.node_id_from_peer(peer)}')
+            logger.info(f'[Node {self.node_id_from_peer(peer)}] -> [Node {self.node_id}] TTL: {payload.ttl} ')
+            if (hexlify(payload.public_key_bin), payload.nonce) not in [(hexlify(tx.public_key_bin), tx.nonce) for tx in self.finalized_txs] and (
+                    hexlify(payload.public_key_bin), payload.nonce) not in [(hexlify(tx.public_key_bin), tx.nonce) for tx in self.pending_txs]:
                 self.pending_txs.append(payload)
                 self.process_pending_transactions()
+            else:
+                self.collision_num += 1
+                pass
+            if payload.ttl > 1:
+                payload.ttl -= 1
+                # Gossip to other nodes
+                for peer in list(self.get_peers()):
+                    print(f'[Node {self.node_id}] sending transaction {payload.nonce} with TTL: {payload.ttl} for {self.node_id_from_peer(peer)}')
+                    self.ez_send(peer, payload)
 
-                if payload.ttl > 0:
-                    payload.ttl -= 1
-
-                    # we send here to all neighbours
-                    for peer in self.get_peers():
-                        print(f'[Node {self.node_id}] Send transaction {payload.nonce} to [Node {self.node_id_from_peer(peer)}]')
-                        logger.info(f'[Node {self.node_id}] Send transaction {payload.nonce} to [Node {self.node_id_from_peer(peer)}]')
-                        self.ez_send(peer, payload)
-                else:
-                    pass
-        else:
-            pass
+            else:
+                pass
 
     def create_blocks_request(self, sender, start_block_number, end_block_number):
         request = BlocksRequest(sender, start_block_number, end_block_number)
