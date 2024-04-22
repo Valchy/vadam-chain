@@ -8,7 +8,7 @@ from ipv8_service import IPv8
 from algorithms.blockchain import BlockchainNode
 
 from log.logging_config import *
-from src.utilities.generate_topology import generate_ring_topology
+from src.utilities.generate_topology import generate_ring_topology, generate_topology
 
 setup_logging()
 
@@ -17,7 +17,8 @@ logger = logging.getLogger('my_app')
 async def start_communities(peer_num, use_localhost=True) -> None:
     logger.info('Community started')
     base_port = 9090
-    topology = generate_ring_topology(peer_num)
+    topology = generate_topology(generate_ring_topology(peer_num), 5)
+    logger.info(f'topology : {topology}')
     for i in range(0, peer_num):
         event = create_event_with_signals()
         node_port = base_port + i
