@@ -188,16 +188,24 @@ class BlockchainNode(Blockchain):
             self.stop()
             return
 
-    def process_pending_transactions(self) -> bool:
+    def check_curr_block(self) -> bool:
+        logger.info(f'Node {self.node_id} is checking self.curr_block!')
         for txs in self.pending_txs:
             result = self.curr_block.add_transaction(txs)
             if result == False:
-                return False
-        return True
+                logger.info(f'{self.node_id} has full cur_block!')
+                hash = self.curr_block.mine()
+                self.update_pending_finalized_txs(self.curr_block)
+                prev_block_number = 0 if len(self.blocks) == 0 else self.blocks[-1].number
+                if prev_block_number + 1 == self.curr_block.number:
+                    self.blocks.append(self.curr_block)
+                for peer in self.get_peers():
+                    self.ez_send(peer, self.curr_block)
+                self.curr_block = self.create_current_block()
 
     def on_start(self):
-        if  self.node_id == 0:
-            self.start_client()
+        # if  self.node_id == 0:
+        self.start_client()
         self.start_validator()
         # if self.node_id % 2 == 0:
         #     #  Run client
@@ -212,6 +220,9 @@ class BlockchainNode(Blockchain):
         self.register_task("tx_create",
                            self.create_transaction, delay=1,
                            interval=1)
+        self.register_task("process_pending_txs",
+                           self.check_curr_block, delay=1,
+                           interval=1)
 
 
     def start_validator(self):
@@ -223,8 +234,8 @@ class BlockchainNode(Blockchain):
             if self.balances[tx.sender] - tx.amount >= 0:
                 self.balances[tx.sender] -= tx.amount
                 self.balances[tx.receiver] += tx.amount
-                self.pending_txs.remove(tx)
-                self.finalized_txs.append(tx)
+                #self.pending_txs.remove(tx)
+                #self.finalized_txs.append(tx)
 
         self.executed_checks += 1
 
@@ -258,21 +269,9 @@ class BlockchainNode(Blockchain):
             logger.info(f'[Node {self.node_id_from_peer(peer)}] -> [Node {self.node_id}] TTL: {payload.ttl} ')
             if (hexlify(payload.public_key_bin), payload.nonce) not in [(hexlify(tx.public_key_bin), tx.nonce) for tx in self.finalized_txs] and (
                     hexlify(payload.public_key_bin), payload.nonce) not in [(hexlify(tx.public_key_bin), tx.nonce) for tx in self.pending_txs]:
+
                 self.pending_txs.append(payload)
-                result = self.process_pending_transactions()
-
-                # if cur_block has already more than max txs, then mine, append if possible and send
-                if result == False:
-                    logger.info(f'{self.node_id} has full cur_block!')
-                    hash = self.curr_block.mine()
-                    self.clean_pending_txs(self.curr_block)
-                    prev_block_number = 0 if len(self.blocks) == 0 else self.blocks[-1].number
-                    if prev_block_number + 1 == self.curr_block.number:
-                        self.blocks.append(self.curr_block)
-                    for peer in self.get_peers():
-                        self.ez_send(peer, self.curr_block)
-                    self.curr_block = self.create_current_block()
-
+                self.check_curr_block()
             else:
                 self.collision_num += 1
                 pass
@@ -290,13 +289,22 @@ class BlockchainNode(Blockchain):
         request = BlocksRequest(sender, start_block_number, end_block_number)
         return request
 
-    def clean_pending_txs(self, block):
+    def update_pending_finalized_txs(self, block):
         # we need to remove from pending_txs transactions that were already included in mined block
-        cleaned_pending_txs = []
+        logger.info(f'Node {self.node_id} Updating of pending_txs and finalized_txs............')
         for tx in self.pending_txs:
             if tx not in block.transactions:
-                cleaned_pending_txs.append(tx)
-        self.pending_txs = cleaned_pending_txs
+                self.pending_txs.remove(tx)
+                self.finalized_txs.append(tx)
+    def clean_curr_block_txs(self, payload):
+        # we need to remove transactions included in mined block from out curr_block.transactions
+        logger.info(f'Node {self.node_id} Cleaning of self.curr_block_txs............')
+        new_txs_list = []
+        for tx in payload.transactions:
+            if tx not in self.curr_block.transactions:
+                new_txs_list.append(tx)
+        self.curr_block.transactions = new_txs_list
+
 
     @message_wrapper(Block)
     async def on_block(self, peer: Peer, payload: Block) -> None:
@@ -305,18 +313,20 @@ class BlockchainNode(Blockchain):
             logger.info(f'[Node {self.node_id}] Received block {payload.number} from [Node {self.node_id_from_peer(peer)}]')
 
             # pull gossip
-            if (payload.number - self.blocks[-1].number) == 1:
+            prev_block_number = 0 if len(self.blocks) == 0 else self.blocks[-1].number
+            if (payload.number - prev_block_number == 1):
+                logger.info('we received block  that we can append')
                 # we received block  that we can append
                 self.blocks.append(payload)
-                self.clean_pending_txs(payload)
-
-                # ?
-                self.create_block()
+                self.update_pending_finalized_txs(payload)
+                self.clean_curr_block_txs(payload)
+                self.check_curr_block()
 
                 # broadcast to all peers
                 for peer in self.get_peers():
                     self.ez_send(peer, payload)
-            elif (payload.number - self.blocks[-1].number) < 1:
+            elif (payload.number - prev_block_number) < 1:
+                logger.info('we received block that we already have')
                 # we already have this block, then
                 # broadcast to all peers
                 for peer in self.get_peers():
@@ -324,8 +334,13 @@ class BlockchainNode(Blockchain):
             else:
                 # we received block that we don't have
                 # and it cannot be appended
+                self.update_pending_finalized_txs(payload)
+                self.clean_curr_block_txs(payload)
+
                 start_block_number = self.blocks[-1].number+1
                 end_block_number = payload.number
+
+                logger.info(f'we received block that we dont have, need request from block from {start_block_number} to {end_block_number}')
                 request_message = self.create_block_request(self.node_id, start_block_number, end_block_number)
                 for peer in self.get_peers():
                     self.ez_send(peer, request_message)
