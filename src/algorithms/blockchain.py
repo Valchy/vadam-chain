@@ -63,7 +63,7 @@ class Block:
 
     def get_hashing_value(self):
         # fix bug: 'Transaction' object has no attribute 'tx_id'
-        return "".join([tx.tx_id for tx in self.transactions]).join(str(self.nonce))
+        return "".join([tx.tx_id for tx in self.transactions]) + str(self.nonce)
 
     def add_transaction(self, transaction: Transaction) -> bool:
         if len(self.transactions) < 10:
@@ -72,15 +72,18 @@ class Block:
         else:
             return False
 
-    async def mine(self):
+    def mine(self):
         now = time.time()
         loop = asyncio.get_event_loop()
         while True:
             self.hashing_value = self.get_hashing_value()
-            self.hash = await loop.run_in_executor(None, hashlib.sha256, self.hashing_value.encode())
-            self.hash = self.hash.hexdigest()
-            if int(self.hash, 16) < self.target:
+            #self.hash = await loop.run_in_executor(None, hashlib.sha256, self.hashing_value.encode())
+            self.hash = hashlib.sha256(self.hashing_value.encode()).hexdigest()
+
+            if int(self.hash, 16) < int(self.puzzle_target, 16):
                 self.timestamp = int(self.prev_block_time + time.time() - now)
+                logger.info(f'Block is mined. Here is hash: {self.hash}')
+                logger.info(f'based on hashing value:{self.hashing_value}')
                 return self.hash
             self.nonce += 1
 
@@ -173,7 +176,8 @@ class BlockchainNode(Blockchain):
         peer_id = self.node_id_from_peer(peer)
         tx = Transaction(self.node_id, peer_id, 10, b'', b'', '', self.counter)
         tx.public_key_bin = self.my_peer.public_key.key_to_bin()
-        tx.tx_id = hashlib.sha256(f'{tx.sender}{tx.receiver}{tx.amount}{tx.nonce}'.encode()).hexdigest()
+        #tx.tx_id = hashlib.sha256(f'{tx.sender}{tx.receiver}{tx.amount}{tx.nonce}'.encode()).hexdigest()
+        tx.tx_id = hashlib.sha256(f'{hexlify(tx.public_key_bin)}{tx.nonce}'.encode()).hexdigest()
         self.sign_transaction(tx)
         self.counter += 1
         self.pending_txs.append(tx)
@@ -208,6 +212,7 @@ class BlockchainNode(Blockchain):
         self.register_task("tx_create",
                            self.create_transaction, delay=1,
                            interval=1)
+
 
     def start_validator(self):
         self.register_task("check_txs", self.check_transactions, delay=2, interval=1)
@@ -264,7 +269,6 @@ class BlockchainNode(Blockchain):
                     prev_block_number = 0 if len(self.blocks) == 0 else self.blocks[-1].number
                     if prev_block_number + 1 == self.curr_block.number:
                         self.blocks.append(self.curr_block)
-                        logger.info(f'The block is mined with {hash} and was sent! peerID: {self.node_id}')
                     for peer in self.get_peers():
                         self.ez_send(peer, self.curr_block)
                     self.curr_block = self.create_current_block()
