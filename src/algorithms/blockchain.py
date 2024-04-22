@@ -47,17 +47,21 @@ class Block:
     number: int
     prev_block_time: int
     prev_block_hash: str
-    difficulty: int
-    puzzle_target: int
-    transactions: list[Transaction]
+    difficulty: str
+    puzzle_target: str
+    transactions: [Transaction]
+    time: int
+    hash: str
+
 
     def __post_init__(self):
-        self.hash = 0
-        self.timestamp = 0
+        # self.hash = 0
+        # self.timestamp = 0
         self.nonce = 0
         self.hashing_value = ""
 
     def get_hashing_value(self):
+        # fix bug: 'Transaction' object has no attribute 'tx_id'
         return "".join([tx.tx_id for tx in self.transactions]).join(str(self.nonce))
 
     def add_transaction(self, transaction: Transaction) -> bool:
@@ -98,7 +102,7 @@ class BlockchainNode(Blockchain):
     def __init__(self, settings: CommunitySettings) -> None:
         super().__init__(settings)
         self.counter = 1
-        self.max_messages = 1
+        self.max_messages = 15
         self.executed_checks = 0
 
         self.pending_txs: list[Transaction] = []
@@ -107,10 +111,11 @@ class BlockchainNode(Blockchain):
         self.blocks: list[Block] = []
         self.collision_num: int = 0
 
-        self.difficulty:int = 115763819684279741274297652248676021157016744923290554136127638308692447723520
+        self.difficulty: int = 115763819684279741274297652248676021157016744923290554136127638308692447723520
         self.target_block_time = 10
         self.puzzle_target = self.calculate_puzzle_target()
-        self.curr_block = Block(0, time.time(), '0', self.difficulty, self.puzzle_target, [])
+        self.curr_block = self.create_current_block()
+        #Block(1, int(time.time()), '0', str(self.difficulty), str(self.puzzle_target), [],  int(time.time()), '0')
 
         # add structure to storing transactions in blocks
         self.key_pair = self.crypto.generate_key("medium")
@@ -118,17 +123,21 @@ class BlockchainNode(Blockchain):
         self.add_message_handler(Block, self.on_block)
         self.add_message_handler(BlocksRequest, self.on_blocks_request)
 
+
+
     def create_block(self):
         self.calculate_difficulty()
         self.calculate_puzzle_target()
         self.curr_block = Block(prev_block_hash=self.blocks[-1].hash,
                                 prev_block_time=self.blocks[-1].timestamp,
-                                difficulty=self.difficulty,
-                                target=self.puzzle_target,
-                                number=self.blocks[-1].number + 1)
+                                difficulty=str(self.difficulty),
+                                target=str(self.puzzle_target),
+                                number=self.blocks[-1].number + 1, time=int(time.time()), hash='0')
+
+    def create_current_block(self):
+        return Block(1, int(time.time()), '0', str(self.difficulty), str(self.puzzle_target), [], int(time.time()), '0')
 
     def calculate_difficulty(self):
-        avg_block_time = 0
         if len(self.blocks) < 100:
             avg_block_time = (self.blocks[-1].timestamp - self.blocks[0].timestamp) / len(self.blocks)
         else:
@@ -173,11 +182,12 @@ class BlockchainNode(Blockchain):
             self.stop()
             return
 
-    def process_pending_transactions(self):
+    def process_pending_transactions(self) -> bool:
         for txs in self.pending_txs:
             result = self.curr_block.add_transaction(txs)
             if result == False:
-                return
+                return False
+        return True
 
     def on_start(self):
         if  self.node_id == 0:
@@ -242,7 +252,21 @@ class BlockchainNode(Blockchain):
             if (hexlify(payload.public_key_bin), payload.nonce) not in [(hexlify(tx.public_key_bin), tx.nonce) for tx in self.finalized_txs] and (
                     hexlify(payload.public_key_bin), payload.nonce) not in [(hexlify(tx.public_key_bin), tx.nonce) for tx in self.pending_txs]:
                 self.pending_txs.append(payload)
-                self.process_pending_transactions()
+                result = self.process_pending_transactions()
+
+                # if cur_block has already more than max txs, then mine, append if possible and send
+                if result == False:
+                    logger.info(f'{self.node_id} has full cur_block!')
+                    hash = self.curr_block.mine()
+                    self.clean_pending_txs(self.curr_block)
+                    prev_block_number = 0 if len(self.blocks) == 0 else self.blocks[-1].number
+                    if prev_block_number + 1 == self.curr_block.number:
+                        self.blocks.append(self.curr_block)
+                        logger.info(f'The block is mined with {hash} and was sent! peerID: {self.node_id}')
+                    for peer in self.get_peers():
+                        self.ez_send(peer, self.curr_block)
+                    self.curr_block = self.create_current_block()
+
             else:
                 self.collision_num += 1
                 pass

@@ -37,4 +37,4 @@ async def start_communities(peer_num, use_localhost=True) -> None:
                    extra_communities={'blockchain_community': BlockchainNode}).start()
     await run_forever()
 
-run(start_communities(100))
+run(start_communities(10))
