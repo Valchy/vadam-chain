@@ -33,11 +33,12 @@ class Transaction:
     amount: int
     public_key_bin: bytes
     signature: bytes
+    tx_id: str
     nonce: int = 1
     ttl: int = 3
 
-    def __post_init__(self):
-        self.tx_id = hashlib.sha256(f'{self.sender}{self.receiver}{self.amount}{self.nonce}'.encode()).hexdigest()
+    # def __post_init__(self):
+    #     self.tx_id = hashlib.sha256(f'{self.sender}{self.receiver}{self.amount}{self.nonce}'.encode()).hexdigest()
 
 
 @dataclass(
@@ -52,12 +53,12 @@ class Block:
     transactions: [Transaction]
     time: int
     hash: str
-
+    nonce: int
 
     def __post_init__(self):
         # self.hash = 0
         # self.timestamp = 0
-        self.nonce = 0
+        # self.nonce = 0
         self.hashing_value = ""
 
     def get_hashing_value(self):
@@ -132,10 +133,10 @@ class BlockchainNode(Blockchain):
                                 prev_block_time=self.blocks[-1].timestamp,
                                 difficulty=str(self.difficulty),
                                 target=str(self.puzzle_target),
-                                number=self.blocks[-1].number + 1, time=int(time.time()), hash='0')
+                                number=self.blocks[-1].number + 1, time=int(time.time()), hash='0', nonce=0)
 
     def create_current_block(self):
-        return Block(1, int(time.time()), '0', str(self.difficulty), str(self.puzzle_target), [], int(time.time()), '0')
+        return Block(1, int(time.time()), '0', str(self.difficulty), str(self.puzzle_target), [], int(time.time()), '0', 0)
 
     def calculate_difficulty(self):
         if len(self.blocks) < 100:
@@ -170,8 +171,9 @@ class BlockchainNode(Blockchain):
     def create_transaction(self):
         peer = random.choice([i for i in self.get_peers()])
         peer_id = self.node_id_from_peer(peer)
-        tx = Transaction(self.node_id, peer_id, 10, b'', b'', self.counter)
+        tx = Transaction(self.node_id, peer_id, 10, b'', b'', '', self.counter)
         tx.public_key_bin = self.my_peer.public_key.key_to_bin()
+        tx.tx_id = hashlib.sha256(f'{tx.sender}{tx.receiver}{tx.amount}{tx.nonce}'.encode()).hexdigest()
         self.sign_transaction(tx)
         self.counter += 1
         self.pending_txs.append(tx)
@@ -234,7 +236,7 @@ class BlockchainNode(Blockchain):
 
     def verify_block(self, block: Block) -> bool:
         if block.hash != hashlib.sha256(block.get_hashing_value().encode()).hexdigest()\
-        and int(block.hash, 16) < self.target:
+        and int(block.hash, 16) < self.puzzle_target:
             return False
         else:
             return True
