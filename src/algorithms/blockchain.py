@@ -34,7 +34,7 @@ class Transaction:
     public_key_bin: bytes
     signature: bytes
     tx_id: str
-    nonce: int = 1
+    nonce: int
     ttl: int = 3
 
     # def __post_init__(self):
@@ -57,7 +57,7 @@ class Block:
 
     def __post_init__(self):
         # self.hash = 0
-        # self.timestamp = 0
+        # self.time = 0
         # self.nonce = 0
         self.hashing_value = ""
 
@@ -77,17 +77,15 @@ class Block:
         loop = asyncio.get_event_loop()
         while True:
             self.hashing_value = self.get_hashing_value()
-            #self.hash = await loop.run_in_executor(None, hashlib.sha256, self.hashing_value.encode())
+            # self.hash = await loop.run_in_executor(None, hashlib.sha256, self.hashing_value.encode())
             self.hash = hashlib.sha256(self.hashing_value.encode()).hexdigest()
 
             if int(self.hash, 16) < int(self.puzzle_target, 16):
-                self.timestamp = int(self.prev_block_time + time.time() - now)
+                self.time = int(self.prev_block_time + time.time() - now)
                 logger.info(f'Block is mined. Here is hash: {self.hash}')
                 logger.info(f'based on hashing value:{self.hashing_value}')
                 return self.hash
             self.nonce += 1
-
-
 
 
 @dataclass(
@@ -99,7 +97,9 @@ class BlocksRequest:
     end_block_number: int
 
     def __post_init__(self):
-        self.tx_id = hashlib.sha256(f'{self.sender}{self.start_block_number}{self.end_block_number}'.encode()).hexdigest()
+        self.tx_id = hashlib.sha256(
+            f'{self.sender}{self.start_block_number}{self.end_block_number}'.encode()).hexdigest()
+
 
 class BlockchainNode(Blockchain):
 
@@ -119,7 +119,7 @@ class BlockchainNode(Blockchain):
         self.target_block_time = 10
         self.puzzle_target = self.calculate_puzzle_target()
         self.curr_block = self.create_current_block()
-        #Block(1, int(time.time()), '0', str(self.difficulty), str(self.puzzle_target), [],  int(time.time()), '0')
+        # Block(1, int(time.time()), '0', str(self.difficulty), str(self.puzzle_target), [],  int(time.time()), '0')
 
         # add structure to storing transactions in blocks
         self.key_pair = self.crypto.generate_key("medium")
@@ -127,26 +127,29 @@ class BlockchainNode(Blockchain):
         self.add_message_handler(Block, self.on_block)
         self.add_message_handler(BlocksRequest, self.on_blocks_request)
 
-
-
     def create_block(self):
         self.calculate_difficulty()
         self.calculate_puzzle_target()
         self.curr_block = Block(prev_block_hash=self.blocks[-1].hash,
-                                prev_block_time=self.blocks[-1].timestamp,
+                                prev_block_time=self.blocks[-1].time,
                                 difficulty=str(self.difficulty),
-                                target=str(self.puzzle_target),
-                                number=self.blocks[-1].number + 1, time=int(time.time()), hash='0', nonce=0)
+                                puzzle_target=str(self.puzzle_target),
+                                transactions=[],
+                                number=self.blocks[-1].number + 1,
+                                time=int(time.time()),
+                                hash='0',
+                                nonce=0)
 
     def create_current_block(self):
-        return Block(1, int(time.time()), '0', str(self.difficulty), str(self.puzzle_target), [], int(time.time()), '0', 0)
+        return Block(1, int(time.time()), '0', str(self.difficulty), str(self.puzzle_target), [], int(time.time()), '0',
+                     0)
 
     def calculate_difficulty(self):
-        if len(self.blocks) < 100:
-            avg_block_time = (self.blocks[-1].timestamp - self.blocks[0].timestamp) / len(self.blocks)
-        else:
-            avg_block_time = (self.blocks[-1].timestamp - self.blocks[-100].timestamp) / 100
-        self.difficulty = self.difficulty * self.target_block_time / avg_block_time
+        # if len(self.blocks) < 100:
+        #     avg_block_time = (self.blocks[-1].time - self.blocks[0].time) / len(self.blocks)
+        # else:
+        #     avg_block_time = (self.blocks[-1].time - self.blocks[-100].time) / 100
+        self.difficulty = self.difficulty * self.target_block_time  # / avg_block_time
 
     def calculate_puzzle_target(self):
         max_value = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -170,13 +173,12 @@ class BlockchainNode(Blockchain):
                                               self.serializer.pack_serializable(tx_copy),
                                               transaction.signature)
 
-
     def create_transaction(self):
         peer = random.choice([i for i in self.get_peers()])
         peer_id = self.node_id_from_peer(peer)
         tx = Transaction(self.node_id, peer_id, 10, b'', b'', '', self.counter)
         tx.public_key_bin = self.my_peer.public_key.key_to_bin()
-        #tx.tx_id = hashlib.sha256(f'{tx.sender}{tx.receiver}{tx.amount}{tx.nonce}'.encode()).hexdigest()
+        # tx.tx_id = hashlib.sha256(f'{tx.sender}{tx.receiver}{tx.amount}{tx.nonce}'.encode()).hexdigest()
         tx.tx_id = hashlib.sha256(f'{hexlify(tx.public_key_bin)}{tx.nonce}'.encode()).hexdigest()
         self.sign_transaction(tx)
         self.counter += 1
@@ -194,14 +196,14 @@ class BlockchainNode(Blockchain):
             result = self.curr_block.add_transaction(txs)
             if result == False:
                 logger.info(f'{self.node_id} has full cur_block!')
-                hash = self.curr_block.mine()
+                self.curr_block.mine()
                 self.update_pending_finalized_txs(self.curr_block)
                 prev_block_number = 0 if len(self.blocks) == 0 else self.blocks[-1].number
                 if prev_block_number + 1 == self.curr_block.number:
                     self.blocks.append(self.curr_block)
                 for peer in self.get_peers():
                     self.ez_send(peer, self.curr_block)
-                self.curr_block = self.create_current_block()
+                self.create_block()
 
     def on_start(self):
         # if  self.node_id == 0:
@@ -224,7 +226,6 @@ class BlockchainNode(Blockchain):
                            self.check_curr_block, delay=1,
                            interval=1)
 
-
     def start_validator(self):
         self.register_task("check_txs", self.check_transactions, delay=2, interval=1)
 
@@ -234,8 +235,8 @@ class BlockchainNode(Blockchain):
             if self.balances[tx.sender] - tx.amount >= 0:
                 self.balances[tx.sender] -= tx.amount
                 self.balances[tx.receiver] += tx.amount
-                #self.pending_txs.remove(tx)
-                #self.finalized_txs.append(tx)
+                # self.pending_txs.remove(tx)
+                # self.finalized_txs.append(tx)
 
         self.executed_checks += 1
 
@@ -247,12 +248,12 @@ class BlockchainNode(Blockchain):
             print(f'amount of transactions: {len(self.curr_block.transactions)}')
             # logger.info(f'amount of transactions: {len(self.curr_block.transactions)}')
             logger.info(f'node id: {self.node_id}, self.pending_txs length: {len(self.pending_txs)}, '
-                f'self.finalized_txs length: {len(self.finalized_txs)}, number of collision: {self.collision_num}')
+                        f'self.finalized_txs length: {len(self.finalized_txs)}, number of collision: {self.collision_num}')
             self.stop()
 
     def verify_block(self, block: Block) -> bool:
-        if block.hash != hashlib.sha256(block.get_hashing_value().encode()).hexdigest()\
-        and int(block.hash, 16) < self.puzzle_target:
+        if block.hash != hashlib.sha256(block.get_hashing_value().encode()).hexdigest() \
+                and int(block.hash, 16) < self.puzzle_target:
             return False
         else:
             return True
@@ -267,10 +268,14 @@ class BlockchainNode(Blockchain):
             logger.info(f'transaction nonce:{payload.nonce}')
             print(f'[Node {self.node_id}] Received transaction {payload.nonce} from {self.node_id_from_peer(peer)}')
             logger.info(f'[Node {self.node_id_from_peer(peer)}] -> [Node {self.node_id}] TTL: {payload.ttl} ')
-            if (hexlify(payload.public_key_bin), payload.nonce) not in [(hexlify(tx.public_key_bin), tx.nonce) for tx in self.finalized_txs] and (
-                    hexlify(payload.public_key_bin), payload.nonce) not in [(hexlify(tx.public_key_bin), tx.nonce) for tx in self.pending_txs]:
+            if (hexlify(payload.public_key_bin), payload.nonce) not in [(hexlify(tx.public_key_bin), tx.nonce) for tx in
+                                                                        self.finalized_txs] and (
+                    hexlify(payload.public_key_bin), payload.nonce) not in [(hexlify(tx.public_key_bin), tx.nonce) for
+                                                                            tx in self.pending_txs]:
 
                 self.pending_txs.append(payload)
+                logger.info(
+                    f'Node {self.node_id} already have {len(self.finalized_txs)} from finalized and {len(self.pending_txs)} in pending')
                 self.check_curr_block()
             else:
                 self.collision_num += 1
@@ -279,7 +284,8 @@ class BlockchainNode(Blockchain):
                 payload.ttl -= 1
                 # Gossip to other nodes
                 for peer in list(self.get_peers()):
-                    print(f'[Node {self.node_id}] sending transaction {payload.nonce} with TTL: {payload.ttl} for {self.node_id_from_peer(peer)}')
+                    print(
+                        f'[Node {self.node_id}] sending transaction {payload.nonce} with TTL: {payload.ttl} for {self.node_id_from_peer(peer)}')
                     self.ez_send(peer, payload)
 
             else:
@@ -296,6 +302,7 @@ class BlockchainNode(Blockchain):
             if tx not in block.transactions:
                 self.pending_txs.remove(tx)
                 self.finalized_txs.append(tx)
+
     def clean_curr_block_txs(self, payload):
         # we need to remove transactions included in mined block from out curr_block.transactions
         logger.info(f'Node {self.node_id} Cleaning of self.curr_block_txs............')
@@ -305,12 +312,12 @@ class BlockchainNode(Blockchain):
                 new_txs_list.append(tx)
         self.curr_block.transactions = new_txs_list
 
-
     @message_wrapper(Block)
     async def on_block(self, peer: Peer, payload: Block) -> None:
         if self.verify_block(payload):
             print(f'[Node {self.node_id}] Received block {payload.number} from [Node {self.node_id_from_peer(peer)}]')
-            logger.info(f'[Node {self.node_id}] Received block {payload.number} from [Node {self.node_id_from_peer(peer)}]')
+            logger.info(
+                f'[Node {self.node_id}] Received block {payload.number} from [Node {self.node_id_from_peer(peer)}]')
 
             # pull gossip
             prev_block_number = 0 if len(self.blocks) == 0 else self.blocks[-1].number
@@ -337,16 +344,23 @@ class BlockchainNode(Blockchain):
                 self.update_pending_finalized_txs(payload)
                 self.clean_curr_block_txs(payload)
 
-                start_block_number = self.blocks[-1].number+1
+                start_block_number = self.blocks[-1].number + 1
                 end_block_number = payload.number
 
-                logger.info(f'we received block that we dont have, need request from block from {start_block_number} to {end_block_number}')
-                request_message = self.create_block_request(self.node_id, start_block_number, end_block_number)
+                logger.info(
+                    f'we received block that we dont have, need request from block from {start_block_number} to {end_block_number}')
+                request_message = self.create_blocks_request(self.node_id, start_block_number, end_block_number)
+
                 for peer in self.get_peers():
                     self.ez_send(peer, request_message)
 
+            logger.info(f'Node {self.node_id} has the following blocks: {[block.number for block in self.blocks]}')
+
     @message_wrapper(BlocksRequest)
     async def on_blocks_request(self, peer: Peer, payload: BlocksRequest) -> None:
-        last_possible_block_number = min(payload.end_block_number+1, self.blocks[-1].number)
+        logger.info(f'Node {self.node_id} has the following blocks: {[block.number for block in self.blocks]}')
+        logger.info(
+            f'Node {self.node_id} received block request from {payload.start_block_number} to {payload.end_block_number}')
+        last_possible_block_number = min(payload.end_block_number + 1, self.blocks[-1].number)
         for i in range(payload.start_block_number, last_possible_block_number):
             self.ez_send(payload.sender, self.blocks[i])
