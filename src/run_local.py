@@ -42,8 +42,8 @@ async def start_communities(peer_num, use_localhost=True) -> None:
         logger.info(f'Node running on port {node_port}')
 
     logger.info('OUTSIDE FOR LOOP')
-    # fastapi_thread = threading.Thread(target=lambda: run_web_server(ipv8_instances))
-    # fastapi_thread.start()
+    fastapi_thread = threading.Thread(target=lambda: run_web_server(ipv8_instances))
+    fastapi_thread.start()
 
     await run_forever()
 

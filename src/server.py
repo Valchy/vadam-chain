@@ -17,6 +17,9 @@ async def send_message(node_port: int):
     ipv8_instance = app.ipv8_instances.get(node_port)
 
     print('IF YOU SEE THIS. THIS WORKED', ipv8_instance.overlays[0].counter)
+    logger.info('STARTING NODES FROM SERVER')
+    ipv8_instance.overlays[0].on_web_start()
+    logger.info('NODES SHOULD START')
     # ipv8_instance.overlays[0].start_client()
 
     if not ipv8_instance:

@@ -208,10 +208,15 @@ class BlockchainNode(Blockchain):
                     self.ez_send(peer, self.curr_block)
                 self.create_block()
 
-    def on_start(self):
-        # if  self.node_id == 0:
+    def on_web_start(self):
         self.start_client()
         self.start_validator()
+
+    def on_start(self):
+        pass
+        # if  self.node_id == 0:
+        # self.start_client()
+        # self.start_validator()
         # if self.node_id % 2 == 0:
         #     #  Run client
         #     self.start_client()
