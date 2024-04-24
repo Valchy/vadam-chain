@@ -101,9 +101,59 @@ class BlocksRequest:
             f'{self.sender}{self.start_block_number}{self.end_block_number}'.encode()).hexdigest()
 
 
+class LiquidityPool:
+    def __init__(self):
+        self.pools = {'BTC': 10000, 'ETH': 100000}
+
+    def add_liquidity(self, btc_amount, eth_amount):
+        self.pools['BTC'] += btc_amount
+        self.pools['ETH'] += eth_amount
+        print(f"Added liquidity: {btc_amount} BTC and {eth_amount} ETH")
+
+    def remove_liquidity(self, btc_amount, eth_amount):
+        if self.pools['BTC'] >= btc_amount and self.pools['ETH'] >= eth_amount:
+            self.pools['BTC'] -= btc_amount
+            self.pools['ETH'] -= eth_amount
+            print(f"Removed liquidity: {btc_amount} BTC and {eth_amount} ETH")
+        else:
+            print("Insufficient liquidity to remove.")
+
+
+@dataclass(
+    msg_id=4
+)
+class UniswapTransactions:
+    def __init__(self, node):
+        self.node = node
+
+    def swap(self, from_coin, to_coin, amount):
+        if self.node.get_balance(from_coin) >= amount:
+            self.node.update_balance(from_coin, -amount)
+            self.node.update_balance(to_coin, amount * to_coin/from_coin)
+            print(f"Swapped {amount} {from_coin} for {amount} {to_coin}")
+        else:
+            print(f"Not enough {from_coin} to perform the swap.")
+
+    def add_liquidity(self, btc_amount, eth_amount):
+        if self.node.get_balance('BTC') >= btc_amount and self.node.get_balance('ETH') >= eth_amount:
+            self.node.update_balance('BTC', -btc_amount)
+            self.node.update_balance('ETH', -eth_amount)
+            self.node.liquidity_pool.add_liquidity(btc_amount, eth_amount)
+        else:
+            print("Insufficient balance to add liquidity.")
+
+    def exit_liquidity(self, btc_amount, eth_amount):
+        if self.node.liquidity_pool.pools['BTC'] >= btc_amount and self.node.liquidity_pool.pools['ETH'] >= eth_amount:
+            self.node.update_balance('BTC', btc_amount)
+            self.node.update_balance('ETH', eth_amount)
+            self.node.liquidity_pool.remove_liquidity(btc_amount, eth_amount)
+        else:
+            print("Insufficient liquidity to exit.")
+
+
 class BlockchainNode(Blockchain):
 
-    def __init__(self, settings: CommunitySettings) -> None:
+    def __init__(self, settings: CommunitySettings, liquidity_pool) -> None:
         super().__init__(settings)
         self.counter = 1
         self.max_messages = 15
@@ -111,7 +161,8 @@ class BlockchainNode(Blockchain):
 
         self.pending_txs: list[Transaction] = []
         self.finalized_txs: list[Transaction] = []
-        self.balances = defaultdict(lambda: 1000)
+        self.balances = defaultdict(lambda:  {'BTC': 100, 'ETH': 1000})
+        self.liquidity_pool = liquidity_pool
         self.blocks: list[Block] = []
         self.collision_num: int = 0
 
@@ -126,6 +177,15 @@ class BlockchainNode(Blockchain):
         self.add_message_handler(Transaction, self.on_transaction)
         self.add_message_handler(Block, self.on_block)
         self.add_message_handler(BlocksRequest, self.on_blocks_request)
+
+    def update_balance(self, coin, amount):
+        if coin in self.balances:
+            self.balances[coin] += amount
+        else:
+            print(f"Coin {coin} not supported.")
+
+    def get_balance(self, coin):
+        return self.balances.get(coin, 0)
 
     def create_block(self):
         self.calculate_difficulty()
@@ -232,9 +292,9 @@ class BlockchainNode(Blockchain):
     def check_transactions(self):
         for tx in self.pending_txs:
             # block = self.find_block_for_transaction(tx)
-            if self.balances[tx.sender] - tx.amount >= 0:
-                self.balances[tx.sender] -= tx.amount
-                self.balances[tx.receiver] += tx.amount
+            if self.balances[tx.sender]["ETH"] - tx.amount >= 0:
+                self.balances[tx.sender]["ETH"] -= tx.amount
+                self.balances[tx.receiver]["EHT"] += tx.amount
                 # self.pending_txs.remove(tx)
                 # self.finalized_txs.append(tx)
 
