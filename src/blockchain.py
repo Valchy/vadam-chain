@@ -7,7 +7,6 @@ from dataclasses import dataclass
 import time
 import asyncio
 
-from ipv8.lazy_community import lazy_wrapper
 from ipv8.community import CommunitySettings
 from ipv8.messaging.payload_dataclass import overwrite_dataclass
 from ipv8.types import Peer
@@ -19,13 +18,9 @@ from da_types import Blockchain, message_wrapper
 from merkle_util import merkle_root, merkle_proof
 from log.logging_config import *
 
-import math
-from decimal import Decimal, getcontext
-
-getContext().prec = 100
+setup_logging()
 
 # Create logger
-setup_logging()
 logger = logging.getLogger('my_app')
 
 # We are using a custom dataclass implementation.
@@ -58,7 +53,7 @@ class Block:
     prev_block_hash: str
     difficulty: str
     puzzle_target: str
-    transactions: list[Transaction]
+    transactions: [Transaction]
     time: int
     hash: str
     nonce: int
@@ -75,8 +70,7 @@ class Block:
 
     def add_transaction(self, transaction: Transaction) -> bool:
         if len(self.transactions) < 10:
-            if transaction not in self. transactions:
-                self.transactions.append(transaction)
+            self.transactions.append(transaction)
             return True
         else:
             return False
@@ -84,8 +78,6 @@ class Block:
     def mine(self):
         now = time.time()
         loop = asyncio.get_event_loop()
-        logger.info(f'Someone is mining block {self.number}...')
-
         while True:
             self.hashing_value = self.get_hashing_value()
             # self.hash = await loop.run_in_executor(None, hashlib.sha256, self.hashing_value.encode())
