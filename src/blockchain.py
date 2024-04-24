@@ -11,9 +11,9 @@ from ipv8.community import CommunitySettings
 from ipv8.messaging.payload_dataclass import overwrite_dataclass
 from ipv8.types import Peer
 
-from src.da_types import Blockchain, message_wrapper
-from src.merkle_util import merkle_root, merkle_proof
-from src.log.logging_config import *
+from da_types import Blockchain, message_wrapper
+from merkle_util import merkle_root, merkle_proof
+from log.logging_config import *
 
 setup_logging()
 
