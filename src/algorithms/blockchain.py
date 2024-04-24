@@ -104,6 +104,7 @@ class BlocksRequest:
 class LiquidityPool:
     def __init__(self):
         self.pools = {'BTC': 10000, 'ETH': 100000}
+        self.c = self.pools["BTC"] * self.pools["ETH"]
 
     def add_liquidity(self, btc_amount, eth_amount):
         self.pools['BTC'] += btc_amount
