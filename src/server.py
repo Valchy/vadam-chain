@@ -11,6 +11,18 @@ logger = logging.getLogger('my_app')
 # Create web server
 app = FastAPI()
 
+@app.get("/get-transactions/{node_port}")
+async def get_transactions(node_port: int):
+    logger.info('Getting transactions')
+    ipv8_instance = app.ipv8_instances.get(node_port)
+    transactions = ipv8_instance.overlays[0].finalized_txs
+    print(transactions, len(transactions))
+
+    if not ipv8_instance:
+        raise HTTPException(status_code=404, detail="IPv8 instance not found")
+    
+    return {"status": "OK", "transactions-made": len(transactions)}
+
 @app.post("/send-message/{node_port}")
 async def send_message(node_port: int):
     logger.info(f'Send message api called received, node {node_port}')
