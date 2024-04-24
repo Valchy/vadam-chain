@@ -8,7 +8,7 @@ from ipv8_service import IPv8
 from algorithms.blockchain import BlockchainNode
 
 from log.logging_config import *
-from src.utilities.generate_topology import generate_ring_topology, generate_topology
+from utilities.generate_topology import generate_ring_topology, generate_topology
 
 setup_logging()
 
