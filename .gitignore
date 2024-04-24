@@ -52,3 +52,5 @@ docs/_build/
 # Virtual Environment
 venv
 .venv
+
+*.pem
