@@ -5,3 +5,5 @@ pyipv8==2.12
 pyyaml
 networkx
 matplotlib
+asyncio
+logger

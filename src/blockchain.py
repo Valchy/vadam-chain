@@ -11,6 +11,9 @@ from ipv8.community import CommunitySettings
 from ipv8.messaging.payload_dataclass import overwrite_dataclass
 from ipv8.types import Peer
 
+from algorithms.echo_algorithm import *
+from algorithms.ring_election import *
+
 from da_types import Blockchain, message_wrapper
 from merkle_util import merkle_root, merkle_proof
 from log.logging_config import *
@@ -314,6 +317,7 @@ class BlockchainNode(Blockchain):
 
     @message_wrapper(Block)
     async def on_block(self, peer: Peer, payload: Block) -> None:
+        logger.info('HERE HERE HERE HERE HERE BLOCK')
         if self.verify_block(payload):
             print(f'[Node {self.node_id}] Received block {payload.number} from [Node {self.node_id_from_peer(peer)}]')
             logger.info(
