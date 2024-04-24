@@ -7,3 +7,5 @@ networkx
 matplotlib
 asyncio
 logger
+fastapi
+uvicorn
