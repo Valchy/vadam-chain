@@ -1,3 +1,6 @@
+# Command to run file from console
+# WINDOWS: source .venv/Scripts/activate; cd src; python run_local.py
+# MAC: source .venv/bin/activate; cd src; python run_local.py
 
 from asyncio import run
 import threading
@@ -11,8 +14,6 @@ from server import run_web_server
 
 from log.logging_config import *
 from utilities.generate_topology import generate_ring_topology, generate_topology
-
-setup_logging()
 
 # Create logger
 setup_logging()
@@ -29,6 +30,7 @@ async def start_communities(peer_num, use_localhost=True) -> None:
     for i in range(0, peer_num):
         event = create_event_with_signals()
         node_port = base_port + i
+
         connections = topology[i]
         connections_updated = [(x, base_port + x) for x in connections]
 
@@ -40,13 +42,10 @@ async def start_communities(peer_num, use_localhost=True) -> None:
         ipv8_instance = IPv8(builder.finalize(), extra_communities={'blockchain_community': BlockchainNode})
         await ipv8_instance.start()
 
-        logger.info(f'ADDED NEW INSTANCE {node_port}')
+        logger.info(f'Node running on port {node_port}')
         ipv8_instances[node_port] = ipv8_instance
         print(ipv8_instance)
 
-        logger.info(f'Node running on port {node_port}')
-
-    logger.info('OUTSIDE FOR LOOP')
     fastapi_thread = threading.Thread(target=lambda: run_web_server(ipv8_instances))
     fastapi_thread.start()
 
