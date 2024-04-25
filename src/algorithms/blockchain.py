@@ -30,6 +30,8 @@ dataclass = overwrite_dataclass(dataclass)
 class Transaction:
     sender: int
     receiver: int
+    is_uniswap = False
+    coin = "ETH"
     amount: int
     public_key_bin: bytes
     signature: bytes
@@ -107,6 +109,57 @@ class BlocksRequest:
             f'{self.sender}{self.start_block_number}{self.end_block_number}'.encode()).hexdigest()
 
 
+# class LiquidityPool:
+#     def __init__(self):
+#         self.pools = {'BTC': 10000, 'ETH': 100000}
+#         self.c = self.pools["BTC"] * self.pools["ETH"]
+#
+#     def add_liquidity(self, btc_amount, eth_amount):
+#         self.pools['BTC'] += btc_amount
+#         self.pools['ETH'] += eth_amount
+#         print(f"Added liquidity: {btc_amount} BTC and {eth_amount} ETH")
+#
+#     def remove_liquidity(self, btc_amount, eth_amount):
+#         if self.pools['BTC'] >= btc_amount and self.pools['ETH'] >= eth_amount:
+#             self.pools['BTC'] -= btc_amount
+#             self.pools['ETH'] -= eth_amount
+#             print(f"Removed liquidity: {btc_amount} BTC and {eth_amount} ETH")
+#         else:
+#             print("Insufficient liquidity to remove.")
+
+
+# @dataclass(
+#     msg_id=4
+# )
+# class UniswapTransactions:
+#     def __init__(self, node):
+#         self.node = node
+#
+#     def swap(self, from_coin, to_coin, amount):
+#         if self.node.get_balance(from_coin) >= amount:
+#             self.node.update_balance(from_coin, -amount)
+#             self.node.update_balance(to_coin, amount * to_coin/from_coin)
+#             print(f"Swapped {amount} {from_coin} for {amount} {to_coin}")
+#         else:
+#             print(f"Not enough {from_coin} to perform the swap.")
+#
+#     def add_liquidity(self, btc_amount, eth_amount):
+#         if self.node.get_balance('BTC') >= btc_amount and self.node.get_balance('ETH') >= eth_amount:
+#             self.node.update_balance('BTC', -btc_amount)
+#             self.node.update_balance('ETH', -eth_amount)
+#             self.node.liquidity_pool.add_liquidity(btc_amount, eth_amount)
+#         else:
+#             print("Insufficient balance to add liquidity.")
+#
+#     def exit_liquidity(self, btc_amount, eth_amount):
+#         if self.node.liquidity_pool.pools['BTC'] >= btc_amount and self.node.liquidity_pool.pools['ETH'] >= eth_amount:
+#             self.node.update_balance('BTC', btc_amount)
+#             self.node.update_balance('ETH', eth_amount)
+#             self.node.liquidity_pool.remove_liquidity(btc_amount, eth_amount)
+#         else:
+#             print("Insufficient liquidity to exit.")
+
+
 class BlockchainNode(Blockchain):
 
     def __init__(self, settings: CommunitySettings) -> None:
@@ -117,7 +170,9 @@ class BlockchainNode(Blockchain):
 
         self.pending_txs: list[Transaction] = []
         self.finalized_txs: list[Transaction] = []
-        self.balances = defaultdict(lambda: 1000)
+        self.balances = defaultdict(lambda:  {'BTC': 100, 'ETH': 1000})
+        self.pools = {'BTC': 10000, 'ETH': 100000}
+        self.c = self.pools["BTC"] * self.pools["ETH"]
         self.blocks: list[Block] = []
         self.longest_chain: list[Block] = []
         self.collision_num: int = 0
@@ -133,6 +188,23 @@ class BlockchainNode(Blockchain):
         self.add_message_handler(Transaction, self.on_transaction)
         self.add_message_handler(Block, self.on_block)
         self.add_message_handler(BlocksRequest, self.on_blocks_request)
+
+    def add_liquidity(self, btc_amount, eth_amount):
+        self.pools['BTC'] += btc_amount
+        self.pools['ETH'] += eth_amount
+        self.balances['BTC'] -= btc_amount
+        self.balances['ETH'] -= eth_amount
+        print(f"Added liquidity: {btc_amount} BTC and {eth_amount} ETH")
+
+    def remove_liquidity(self, btc_amount, eth_amount):
+        if self.pools['BTC'] >= btc_amount and self.pools['ETH'] >= eth_amount:
+            self.pools['BTC'] -= btc_amount
+            self.pools['ETH'] -= eth_amount
+            self.balances['BTC'] += btc_amount
+            self.balances['ETH'] += eth_amount
+            print(f"Removed liquidity: {btc_amount} BTC and {eth_amount} ETH")
+        else:
+            print("Insufficient liquidity to remove.")
 
     def create_block(self):
         self.calculate_difficulty()
@@ -221,6 +293,27 @@ class BlockchainNode(Blockchain):
         self.sign_transaction(tx)
         self.counter += 1
         self.pending_txs.append(tx)
+        for peer in list(self.get_peers()):
+            self.ez_send(peer, tx)
+        if self.counter > self.max_messages:
+            self.cancel_pending_task("tx_create")
+            self.stop()
+            return
+
+    def create_uniswap_transaction(self, coin):
+        tx = Transaction(self.node_id, self.node_id, is_uniswap=True, coin=coin, public_key_bin=b'', signature=b'', tx_id='', nonce=self.counter)
+        tx.public_key_bin = self.my_peer.public_key.key_to_bin()
+        # tx.tx_id = hashlib.sha256(f'{tx.sender}{tx.receiver}{tx.amount}{tx.nonce}'.encode()).hexdigest()
+        tx.tx_id = hashlib.sha256(f'{hexlify(tx.public_key_bin)}{tx.nonce}'.encode()).hexdigest()
+        self.sign_transaction(tx)
+        self.counter += 1
+        self.pending_txs.append(tx)
+        if coin == 'BTC':
+            self.pools['BTC'] -= tx.amount
+            self.pools['ETH'] += tx.amount
+        else:
+            self.pools['BTC'] += tx.amount
+            self.pools['ETH'] -= tx.amount
         for peer in list(self.get_peers()):
             self.ez_send(peer, tx)
         if self.counter > self.max_messages:
@@ -337,11 +430,23 @@ class BlockchainNode(Blockchain):
     def check_transactions(self):
         for tx in self.pending_txs:
             # block = self.find_block_for_transaction(tx)
-            if self.balances[tx.sender] - tx.amount >= 0:
-                self.balances[tx.sender] -= tx.amount
-                self.balances[tx.receiver] += tx.amount
-                # self.pending_txs.remove(tx)
-                # self.finalized_txs.append(tx)
+            if tx.is_uniswap == False:
+                if self.balances[tx.sender][tx.coin] - tx.amount >= 0:
+                    self.balances[tx.sender][tx.coin] -= tx.amount
+                    self.balances[tx.receiver][tx.coin] += tx.amount
+                    # self.pending_txs.remove(tx)
+                    # self.finalized_txs.append(tx)
+            else:
+                if tx.coin == "ETH":
+                    if self.balances[tx.sender][tx.coin] - tx.amount >= 0:
+                        self.balances[tx.sender][tx.coin] -= tx.amount
+                        self.balances[tx.receiver]["BTC"] += tx.amount
+                else:
+                    if self.balances[tx.sender][tx.coin] - tx.amount >= 0:
+                        self.balances[tx.sender][tx.coin] -= tx.amount
+                        self.balances[tx.receiver]["ETH"] += tx.amount
+
+
 
         self.executed_checks += 1
 
