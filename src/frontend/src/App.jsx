@@ -12,6 +12,25 @@ function App() {
 
 	const handleTransaction = () => {
 		setTxBtnDisabled(true);
+		const myHeaders = new Headers();
+		myHeaders.append('Content-Type', 'application/json');
+
+		const raw = JSON.stringify({
+			node_id: 9090,
+			peer_id: 3,
+		});
+
+		const requestOptions = {
+			method: 'POST',
+			headers: myHeaders,
+			body: raw,
+			redirect: 'follow',
+		};
+
+		fetch('http://localhost:8000/send-transaction', requestOptions)
+			.then(response => response.text())
+			.then(result => console.log(result))
+			.catch(error => console.error(error));
 
 		setTimeout(() => {
 			toast('Transaction successfully sent!');
@@ -44,14 +63,14 @@ function App() {
 				</div>
 				<span className="mt-7 !font-[fantasy]">&gt;&gt;&gt;</span>
 				<div className="flex flex-col">
-					<span className="text-center text-sm mb-1">Recepient</span>
+					<span className="text-center text-sm mb-1">Recipient</span>
 					<Select>
 						<SelectTrigger className="w-[200px]">
 							<SelectValue placeholder="Select a node" />
 						</SelectTrigger>
 						<SelectContent>
 							<SelectGroup>
-								<SelectLabel>Recepient</SelectLabel>
+								<SelectLabel>Recipient</SelectLabel>
 								<SelectItem value={0}>Node 1</SelectItem>
 								<SelectItem value={1}>Node 2</SelectItem>
 								<SelectItem value={2}>Node 3</SelectItem>
