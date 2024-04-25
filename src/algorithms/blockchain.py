@@ -61,9 +61,9 @@ class Block:
         # self.nonce = 0
         self.hashing_value = ""
 
-    def get_hashing_value(self):
+    def get_hashing_value(self, public_key_bin):
         # fix bug: 'Transaction' object has no attribute 'tx_id'
-        return "".join([tx.tx_id for tx in self.transactions]) + str(self.nonce)
+        return "".join([tx.tx_id for tx in self.transactions]) + str(self.nonce) + str(self.number) + str(public_key_bin)
 
     def add_transaction(self, transaction: Transaction) -> bool:
         if len(self.transactions) < 10:
@@ -280,14 +280,6 @@ class BlockchainNode(Blockchain):
                 logger.info(f'{self.node_id} has full cur_block!')
                 self.cancel_pending_task("mine_block")
                 self.register_mine_task()
-                self.update_pending_finalized_txs(self.curr_block)
-                self.append_block(self.curr_block)
-                for peer in self.get_peers():
-                    logger.info(f'sending block {self.curr_block.number}')
-                    self.ez_send(peer, self.curr_block)
-                self.create_block()
-                # self.register_mine_task()
-
                 logger.info(f'Node {self.node_id} created new block with number {self.curr_block.number}')
                 logger.info(f'node {self.node_id} has the following blocks: {[block.number for block in self.blocks]}')
 
@@ -320,7 +312,7 @@ class BlockchainNode(Blockchain):
         # loop = asyncio.get_event_loop()
         logger.info(f'Someone is mining block {self.curr_block.number}...')
         while True:
-            self.curr_block.hashing_value = self.curr_block.get_hashing_value()
+            self.curr_block.hashing_value = self.curr_block.get_hashing_value(self.my_peer.public_key.key_to_bin())
             self.curr_block.hash = hashlib.sha256(self.curr_block.hashing_value.encode()).hexdigest()
             # Use 2^target for comparison
             target_value = 2 ** Decimal(self.curr_block.puzzle_target)
@@ -331,6 +323,12 @@ class BlockchainNode(Blockchain):
                 logger.info(f'Block {self.curr_block.number} based on hashing value:{self.curr_block.hashing_value}')
                 logger.info(f'Block {self.curr_block.number} based on nonce:{self.curr_block.nonce}')
                 logger.info(f'It took {time.time() - now} seconds to mine this block {self.curr_block.number}')
+                self.append_block(self.curr_block)
+                self.update_pending_finalized_txs(self.curr_block)
+                for peer in self.get_peers():
+                    logger.info(f'sending block {self.curr_block.number}')
+                    self.ez_send(peer, self.curr_block)
+                self.create_block()
                 return self.curr_block.hash
             self.curr_block.nonce += 1
     def start_validator(self):
@@ -421,7 +419,7 @@ class BlockchainNode(Blockchain):
         self.curr_block.transactions = new_txs_list
 
     @message_wrapper(Block)
-    async def on_block(self, peer: Peer, payload: Block) -> None:
+    def on_block(self, peer: Peer, payload: Block) -> None:
         if self.verify_block(payload):
             print(f'[Node {self.node_id}] Received block {payload.number} from [Node {self.node_id_from_peer(peer)}]')
             logger.info(
@@ -436,6 +434,7 @@ class BlockchainNode(Blockchain):
         #         self.update_pending_finalized_txs(payload)
         #         self.clean_curr_block_txs(payload)
             self.append_block(payload)
+            # only if the block is for longest chain
             self.update_pending_finalized_txs(payload)
             self.clean_curr_block_txs(payload)
             self.check_curr_block()
@@ -468,7 +467,7 @@ class BlockchainNode(Blockchain):
             # logger.info(f'Node {self.node_id} has the following blocks: {[block.number for block in self.blocks]}')
 
     @message_wrapper(BlocksRequest)
-    async def on_blocks_request(self, peer: Peer, payload: BlocksRequest) -> None:
+    def on_blocks_request(self, peer: Peer, payload: BlocksRequest) -> None:
         logger.info(f'Node {self.node_id} has the following blocks: {[block.number for block in self.blocks]}')
         logger.info(
             f'Node {self.node_id} received block request from {payload.start_block_number} to {payload.end_block_number}')
