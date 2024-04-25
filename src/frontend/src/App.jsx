@@ -17,8 +17,8 @@ function App() {
 
 	// Request transaction from specific node
 	const getTransactions = useCallback(
-		() =>
-			fetch(`http://localhost:8000/get-transactions/${chosenTxHistoryNode}`, {
+		(val = undefined) =>
+			fetch(`http://localhost:8000/get-transactions/${val ? val : chosenTxHistoryNode}`, {
 				method: 'GET',
 				redirect: 'follow',
 			})
@@ -31,10 +31,11 @@ function App() {
 		[chosenTxHistoryNode],
 	);
 
-	// Pull transactions every second
+	// Pull transactions every 3 second
 	useEffect(() => {
-		getTransactions();
-		setInterval(() => getTransactions, 1000);
+		setInterval(() => {
+			getTransactions();
+		}, 3000);
 	}, [getTransactions]);
 
 	// Handle sending transaction
@@ -121,7 +122,7 @@ function App() {
 						value={chosenTxHistoryNode}
 						onValueChange={val => {
 							setChosenTxHistoryNode(val);
-							getTransactions();
+							getTransactions(val);
 						}}
 					>
 						<SelectTrigger className="w-[140px]">
