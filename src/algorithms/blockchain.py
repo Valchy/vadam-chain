@@ -6,18 +6,14 @@ from collections import defaultdict
 from dataclasses import dataclass
 import time
 import asyncio
-from decimal import Decimal, getcontext
+
 from ipv8.community import CommunitySettings
 from ipv8.messaging.payload_dataclass import overwrite_dataclass
-from ipv8.lazy_community import lazy_wrapper
 from ipv8.types import Peer
-import math
 
-from da_types import Blockchain, message_wrapper
-from merkle_util import merkle_root, merkle_proof
-from log.logging_config import *
-
-getcontext().prec = 100
+from src.da_types import Blockchain, message_wrapper
+from src.merkle_util import merkle_root, merkle_proof
+from src.log.logging_config import *
 
 setup_logging()
 
@@ -54,7 +50,7 @@ class Block:
     prev_block_hash: str
     difficulty: str
     puzzle_target: str
-    transactions: list[Transaction]
+    transactions: [Transaction]
     time: int
     hash: str
     nonce: int
@@ -86,7 +82,7 @@ class Block:
     #         self.hash = hashlib.sha256(self.hashing_value.encode()).hexdigest()
     #         # Use 2^target for comparison
     #         target_value = 2 ** Decimal(self.puzzle_target)
-    # 
+    #
     #         if int(self.hash, 16) < target_value:
     #             self.time = int(self.prev_block_time + time.time() - now)
     #             logger.info(f'Block {self.number} is mined. Here is hash: {self.hash}')
@@ -95,7 +91,7 @@ class Block:
     #             logger.info(f'It took {time.time() - now} seconds to mine this block {self.number}')
     #             return self.hash
     #         self.nonce += 1
-        
+
 
 
 @dataclass(
@@ -123,7 +119,7 @@ class BlockchainNode(Blockchain):
         self.finalized_txs: list[Transaction] = []
         self.balances = defaultdict(lambda: 1000)
         self.blocks: list[Block] = []
-        self.block_forks = defaultdict(list) 
+        self.longest_chain: list[Block] = []
         self.collision_num: int = 0
 
         self.difficulty: str = "13"
@@ -231,12 +227,54 @@ class BlockchainNode(Blockchain):
             self.cancel_pending_task("tx_create")
             self.stop()
             return
-    
+
+    def append_block(self, block: Block):
+        self.blocks.append(block)
+        self.blocks.sort(key=lambda x: x.number)
+        self.find_optimal_chain()
+
     def broadcast_current_block(self):
         logger.info(f'Node {self.node_id} is broadcasting self.curr_block! {self.curr_block.number}')
         for peer in list(self.get_peers()):
             self.ez_send(peer, self.curr_block)
 
+    def find_optimal_chain(self):
+        # Initialize variables to store chains and remaining blocks
+        chains = []
+        blocks_still_not_in_chain = self.blocks.copy()
+
+        # Iterate while there are still blocks not added to any chain
+        while blocks_still_not_in_chain:
+            # Start a new chain with the first block in the list
+            current_chain = [blocks_still_not_in_chain.pop(0)]
+
+            # Try to extend the chain
+            i = 0
+            while i < len(blocks_still_not_in_chain):
+                block = blocks_still_not_in_chain[i]
+                if block.prev_block_hash == current_chain[-1].hash:
+                    current_chain.append(block)
+                    blocks_still_not_in_chain.pop(i)
+                else:
+                    i += 1
+
+            # Append the current chain to the list of chains
+            chains.append(current_chain)
+
+        # Debugging output to trace chains
+        try:
+            print(f'Node {self.node_id} has {len(chains)} chains')
+            for chain in chains:
+                print(f'Chain length: {len(chain)}')
+                for block in chain:
+                    print(f'Block number: {block.number}, hash: {block.hash}')
+        except Exception as e:
+            print(f"An error occurred while printing chain details: {e}")
+
+
+
+
+    def check_curr_block(self) -> bool:
     def check_curr_block(self) :
         logger.info(f'Node {self.node_id} is checking self.curr_block!')
         for txs in self.pending_txs:
@@ -246,15 +284,15 @@ class BlockchainNode(Blockchain):
                 self.cancel_pending_task("mine_block")
                 self.register_mine_task()
                 self.update_pending_finalized_txs(self.curr_block)
-                # prev_block_number = 0 if len(self.blocks) == 0 else self.blocks[-1].number
-                # if prev_block_number + 1 == self.curr_block.number:
-                self.blocks.append(self.curr_block)
+                self.append_block(self.curr_block)
                 for peer in self.get_peers():
                     logger.info(f'sending block {self.curr_block.number}')
                     self.ez_send(peer, self.curr_block)
                 self.create_block()
                 # self.register_mine_task()
 
+                logger.info(f'Node {self.node_id} created new block with number {self.curr_block.number}')
+                logger.info(f'node {self.node_id} has the following blocks: {[block.number for block in self.blocks]}')
 
     def on_start(self):
         # if  self.node_id == 0:
@@ -324,14 +362,15 @@ class BlockchainNode(Blockchain):
             self.stop()
 
     def verify_block(self, block: Block) -> bool:
-        if block.hash != hashlib.sha256(block.get_hashing_value().encode()).hexdigest() \
-                and int(block.hash, 16) < float(self.puzzle_target):
-            return False
-        else:
-            return True
+        return True
+        # if block.hash != hashlib.sha256(block.get_hashing_value().encode()).hexdigest() \
+        #         and int(block.hash, 16) < float(self.puzzle_target):
+        #     return False
+        # else:
+        #     return True
 
     @message_wrapper(Transaction)
-    def on_transaction(self, peer: Peer, payload: Transaction) -> None:
+    async def on_transaction(self, peer: Peer, payload: Transaction) -> None:
         print(self.node_id, payload.ttl)
         if self.verify_signature(payload):
 
@@ -384,53 +423,52 @@ class BlockchainNode(Blockchain):
                 new_txs_list.append(tx)
         self.curr_block.transactions = new_txs_list
 
-    @lazy_wrapper(Block)
-    def on_block(self, peer: Peer, payload: Block) -> None:
-        print(f'[Node {self.node_id}] Received block {payload.number} from [Node {self.node_id_from_peer(peer)}]')
-        logger.info(
-            f'[Node {self.node_id}] Received block {payload.number} from [Node {self.node_id_from_peer(peer)}]')
-
-        # pull gossip
-        prev_block_number = 0 if len(self.blocks) == 0 else self.blocks[-1].number
-        if (payload.number - prev_block_number == 1):
-            logger.info('we received block  that we can append')
-            # we received block  that we can append
-            self.blocks.append(payload)
-            self.calculate_difficulty()
-            self.calculate_puzzle_target()
-            self.update_pending_finalized_txs(payload)
-            self.clean_curr_block_txs(payload)
-            self.check_curr_block()
-
-            # broadcast to all peers
-            for peer in self.get_peers():
-                self.ez_send(peer, payload)
-        elif (payload.number - prev_block_number) < 1:
-            logger.info('we received block that we already have')
-            # we already have this block, then
-            # broadcast to all peers
-            for peer in self.get_peers():
-                self.ez_send(peer, payload)
-        else:
-            # we received block that we don't have
-            # and it cannot be appended
-            self.update_pending_finalized_txs(payload)
-            self.clean_curr_block_txs(payload)
-
-            start_block_number = self.blocks[-1].number + 1
-            end_block_number = payload.number
-
+    @message_wrapper(Block)
+    async def on_block(self, peer: Peer, payload: Block) -> None:
+        if self.verify_block(payload):
+            print(f'[Node {self.node_id}] Received block {payload.number} from [Node {self.node_id_from_peer(peer)}]')
             logger.info(
-                f'we received block that we dont have, need request from block from {start_block_number} to {end_block_number}')
-            request_message = self.create_blocks_request(self.node_id, start_block_number, end_block_number)
+                f'[Node {self.node_id}] Received block {payload.number} from [Node {self.node_id_from_peer(peer)}]')
 
-            for peer in self.get_peers():
-                self.ez_send(peer, request_message)
+        #     # pull gossip
+        #     prev_block_number = 0 if len(self.blocks) == 0 else self.blocks[-1].number
+        #     if (payload.number - prev_block_number == 1):
+        #         logger.info('we received block  that we can append')
+        #         # we received block  that we can append
+        #         self.blocks.append(payload)
+        #         self.update_pending_finalized_txs(payload)
+        #         self.clean_curr_block_txs(payload)
+        #         self.check_curr_block()
 
-            logger.info(f'Node {self.node_id} has the following blocks: {[block.number for block in self.blocks]}')
+        #         # broadcast to all peers
+        #         for peer in self.get_peers():
+        #             self.ez_send(peer, payload)
+        #     elif (payload.number - prev_block_number) < 1:
+        #         logger.info('we received block that we already have')
+        #         # we already have this block, then
+        #         # broadcast to all peers
+        #         for peer in self.get_peers():
+        #             self.ez_send(peer, payload)
+        #     else:
+        #         # we received block that we don't have
+        #         # and it cannot be appended
+        #         self.update_pending_finalized_txs(payload)
+        #         self.clean_curr_block_txs(payload)
+
+        #         start_block_number = self.blocks[-1].number + 1
+        #         end_block_number = payload.number
+
+        #         logger.info(
+        #             f'we received block that we dont have, need request from block from {start_block_number} to {end_block_number}')
+        #         request_message = self.create_blocks_request(self.node_id, start_block_number, end_block_number)
+
+            #     for peer in self.get_peers():
+            #         self.ez_send(peer, request_message)
+
+            # logger.info(f'Node {self.node_id} has the following blocks: {[block.number for block in self.blocks]}')
 
     @message_wrapper(BlocksRequest)
-    def on_blocks_request(self, peer: Peer, payload: BlocksRequest) -> None:
+    async def on_blocks_request(self, peer: Peer, payload: BlocksRequest) -> None:
         logger.info(f'Node {self.node_id} has the following blocks: {[block.number for block in self.blocks]}')
         logger.info(
             f'Node {self.node_id} received block request from {payload.start_block_number} to {payload.end_block_number}')
