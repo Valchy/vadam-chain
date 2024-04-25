@@ -25,7 +25,7 @@ function App() {
 				<b className="mt-10 text-2xl">VADAM-CHAIN</b>
 				<p className="text-slate-500 mb-10 text-sm font-light mt-[2px]">When the speed of light is too slow, use vadam-chain.</p>
 			</div>
-			<div className="flex justify-between items-center w-full max-w-[460px]">
+			<div className="flex justify-between items-center w-full max-w-[480px]">
 				<div className="flex flex-col">
 					<span className="text-center mb-1">Sender</span>
 					<Select>
