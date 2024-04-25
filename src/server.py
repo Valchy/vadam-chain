@@ -23,7 +23,7 @@ async def get_transactions(node_port: int):
     ipv8_instance = app.ipv8_instances.get(node_port)
     transactions = ipv8_instance.overlays[0].finalized_txs
     
-    return {"status": "OK", "transactions-made": len(transactions)}
+    return {"status": "OK", "transactions_made": len(transactions)}
 
 @app.post("/send-transaction")
 async def send_message(data: TransactionBody):
