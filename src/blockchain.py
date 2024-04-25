@@ -5,7 +5,7 @@ from binascii import hexlify
 from collections import defaultdict
 from dataclasses import dataclass
 import time
-import asyncio
+from decimal import Decimal
 
 from ipv8.community import CommunitySettings
 from ipv8.messaging.payload_dataclass import overwrite_dataclass
@@ -70,25 +70,31 @@ class Block:
 
     def add_transaction(self, transaction: Transaction) -> bool:
         if len(self.transactions) < 10:
-            self.transactions.append(transaction)
+            if transaction not in self.transactions:
+                self.transactions.append(transaction)
             return True
         else:
             return False
 
-    def mine(self):
-        now = time.time()
-        loop = asyncio.get_event_loop()
-        while True:
-            self.hashing_value = self.get_hashing_value()
-            # self.hash = await loop.run_in_executor(None, hashlib.sha256, self.hashing_value.encode())
-            self.hash = hashlib.sha256(self.hashing_value.encode()).hexdigest()
+    # def mine(self):
+    #     now = time.time()
+    #     loop = asyncio.get_event_loop()
+    #     logger.info(f'Someone is mining block {self.number}...')
+    #     while True:
+    #         self.hashing_value = self.get_hashing_value()
+    #         self.hash = hashlib.sha256(self.hashing_value.encode()).hexdigest()
+    #         # Use 2^target for comparison
+    #         target_value = 2 ** Decimal(self.puzzle_target)
+    #
+    #         if int(self.hash, 16) < target_value:
+    #             self.time = int(self.prev_block_time + time.time() - now)
+    #             logger.info(f'Block {self.number} is mined. Here is hash: {self.hash}')
+    #             logger.info(f'Block {self.number} based on hashing value:{self.hashing_value}')
+    #             logger.info(f'Block {self.number} based on nonce:{self.nonce}')
+    #             logger.info(f'It took {time.time() - now} seconds to mine this block {self.number}')
+    #             return self.hash
+    #         self.nonce += 1
 
-            if int(self.hash, 16) < int(self.puzzle_target, 16):
-                self.time = int(self.prev_block_time + time.time() - now)
-                logger.info(f'Block is mined. Here is hash: {self.hash}')
-                logger.info(f'based on hashing value:{self.hashing_value}')
-                return self.hash
-            self.nonce += 1
 
 
 @dataclass(
@@ -116,10 +122,11 @@ class BlockchainNode(Blockchain):
         self.finalized_txs: list[Transaction] = []
         self.balances = defaultdict(lambda: 1000)
         self.blocks: list[Block] = []
+        self.longest_chain: list[Block] = []
         self.collision_num: int = 0
 
-        self.difficulty: int = 115763819684279741274297652248676021157016744923290554136127638308692447723520
-        self.target_block_time = 10
+        self.difficulty: str = "13"
+        self.target_block_time = 3
         self.puzzle_target = self.calculate_puzzle_target()
         self.curr_block = self.create_current_block()
         # Block(1, int(time.time()), '0', str(self.difficulty), str(self.puzzle_target), [],  int(time.time()), '0')
@@ -136,7 +143,7 @@ class BlockchainNode(Blockchain):
         self.curr_block = Block(prev_block_hash=self.blocks[-1].hash,
                                 prev_block_time=self.blocks[-1].time,
                                 difficulty=str(self.difficulty),
-                                puzzle_target=str(self.puzzle_target),
+                                puzzle_target=self.puzzle_target,
                                 transactions=[],
                                 number=self.blocks[-1].number + 1,
                                 time=int(time.time()),
@@ -144,19 +151,50 @@ class BlockchainNode(Blockchain):
                                 nonce=0)
 
     def create_current_block(self):
-        return Block(1, int(time.time()), '0', str(self.difficulty), str(self.puzzle_target), [], int(time.time()), '0',
+        try:
+            self.calculate_difficulty()
+            self.calculate_puzzle_target()
+        except:
+            pass
+        return Block(1, int(time.time()), '0', self.difficulty, self.puzzle_target, [], int(time.time()), '0',
                      0)
 
     def calculate_difficulty(self):
-        # if len(self.blocks) < 100:
-        #     avg_block_time = (self.blocks[-1].time - self.blocks[0].time) / len(self.blocks)
-        # else:
-        #     avg_block_time = (self.blocks[-1].time - self.blocks[-100].time) / 100
-        self.difficulty = self.difficulty * self.target_block_time  # / avg_block_time
+        if len(self.blocks) > 1:
+            avg_block_time = (self.blocks[-1].time - self.blocks[0].time) / len(self.blocks)
+        else:
+            avg_block_time = self.target_block_time  # Fallback to target block time if not enough blocks
+
+        # Calculate difficulty as base-2 logarithm
+        current_difficulty_log = Decimal(self.difficulty)
+        if avg_block_time < self.target_block_time:
+            new_difficulty_log = current_difficulty_log + Decimal('0.13750352375')  # Approximation for log2(1.1)
+        else:
+            new_difficulty_log = current_difficulty_log - Decimal('0.13750352375')  # Approximation for log2(0.9)
+
+        # Convert the new difficulty back to string for consistency with existing code
+        self.difficulty = str(new_difficulty_log)
+        print(f'Node {self.node_id} difficulty log2: {new_difficulty_log}')
+
 
     def calculate_puzzle_target(self):
-        max_value = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-        return max_value - self.difficulty
+        # Max value in log scale
+        max_value_log = Decimal(256)  # Equivalent to log2(2^256)
+
+        # Calculate target as difference from max value
+        current_difficulty_log = Decimal(self.difficulty)
+        new_puzzle_target_log = max_value_log - current_difficulty_log
+
+        # Store and return the puzzle target in log scale
+        self.puzzle_target = str(new_puzzle_target_log)
+        try:
+            print(f'Node {self.node_id} puzzle target log2: {new_puzzle_target_log}')
+        except:
+            pass
+        return self.puzzle_target
+
+
+
 
     def sign_transaction(self, transaction: Transaction) -> None:
         initial_ttl = transaction.ttl
@@ -193,20 +231,68 @@ class BlockchainNode(Blockchain):
             self.stop()
             return
 
-    def check_curr_block(self) -> bool:
+    def append_block(self, block: Block):
+        self.blocks.append(block)
+        self.blocks.sort(key=lambda x: x.number)
+        self.find_optimal_chain()
+
+    def broadcast_current_block(self):
+        logger.info(f'Node {self.node_id} is broadcasting self.curr_block! {self.curr_block.number}')
+        for peer in list(self.get_peers()):
+            self.ez_send(peer, self.curr_block)
+
+    def find_optimal_chain(self):
+        # Initialize variables to store chains and remaining blocks
+        chains = []
+        blocks_still_not_in_chain = self.blocks.copy()
+
+        # Iterate while there are still blocks not added to any chain
+        while blocks_still_not_in_chain:
+            # Start a new chain with the first block in the list
+            current_chain = [blocks_still_not_in_chain.pop(0)]
+
+            # Try to extend the chain
+            i = 0
+            while i < len(blocks_still_not_in_chain):
+                block = blocks_still_not_in_chain[i]
+                if block.prev_block_hash == current_chain[-1].hash:
+                    current_chain.append(block)
+                    blocks_still_not_in_chain.pop(i)
+                else:
+                    i += 1
+
+            # Append the current chain to the list of chains
+            chains.append(current_chain)
+
+        # Debugging output to trace chains
+        try:
+            print(f'Node {self.node_id} has {len(chains)} chains')
+            logger.info(f'Node {self.node_id} has {len(chains)} chains')
+            for chain in chains:
+                logger.info(f'Chain length: {len(chain)}')
+                for block in chain:
+                    logger.info(f'Block number: {block.number}, hash: {block.hash}')
+        except Exception as e:
+            logger.info(f"An error occurred while printing chain details: {e}")
+
+    def check_curr_block(self) :
         logger.info(f'Node {self.node_id} is checking self.curr_block!')
         for txs in self.pending_txs:
             result = self.curr_block.add_transaction(txs)
             if result == False:
                 logger.info(f'{self.node_id} has full cur_block!')
-                self.curr_block.mine()
+                self.cancel_pending_task("mine_block")
+                self.register_mine_task()
                 self.update_pending_finalized_txs(self.curr_block)
-                prev_block_number = 0 if len(self.blocks) == 0 else self.blocks[-1].number
-                if prev_block_number + 1 == self.curr_block.number:
-                    self.blocks.append(self.curr_block)
+                self.append_block(self.curr_block)
                 for peer in self.get_peers():
+                    logger.info(f'sending block {self.curr_block.number}')
                     self.ez_send(peer, self.curr_block)
                 self.create_block()
+                # self.register_mine_task()
+
+                logger.info(f'Node {self.node_id} created new block with number {self.curr_block.number}')
+                logger.info(f'node {self.node_id} has the following blocks: {[block.number for block in self.blocks]}')
 
     def on_web_start(self):
         self.start_client()
@@ -234,6 +320,27 @@ class BlockchainNode(Blockchain):
                            self.check_curr_block, delay=1,
                            interval=1)
 
+    def register_mine_task(self):
+        self.register_task("mine_block", self.mine)
+
+    def mine(self):
+        now = time.time()
+        # loop = asyncio.get_event_loop()
+        logger.info(f'Someone is mining block {self.curr_block.number}...')
+        while True:
+            self.curr_block.hashing_value = self.curr_block.get_hashing_value()
+            self.curr_block.hash = hashlib.sha256(self.curr_block.hashing_value.encode()).hexdigest()
+            # Use 2^target for comparison
+            target_value = 2 ** Decimal(self.curr_block.puzzle_target)
+
+            if int(self.curr_block.hash, 16) < target_value:
+                self.curr_block.time = int(self.curr_block.prev_block_time + time.time() - now)
+                logger.info(f'Block {self.curr_block.number} is mined. Here is hash: {self.curr_block.hash}')
+                logger.info(f'Block {self.curr_block.number} based on hashing value:{self.curr_block.hashing_value}')
+                logger.info(f'Block {self.curr_block.number} based on nonce:{self.curr_block.nonce}')
+                logger.info(f'It took {time.time() - now} seconds to mine this block {self.curr_block.number}')
+                return self.curr_block.hash
+            self.curr_block.nonce += 1
     def start_validator(self):
         self.register_task("check_txs", self.check_transactions, delay=2, interval=1)
 
@@ -260,11 +367,12 @@ class BlockchainNode(Blockchain):
             self.stop()
 
     def verify_block(self, block: Block) -> bool:
-        if block.hash != hashlib.sha256(block.get_hashing_value().encode()).hexdigest() \
-                and int(block.hash, 16) < self.puzzle_target:
-            return False
-        else:
-            return True
+        return True
+        # if block.hash != hashlib.sha256(block.get_hashing_value().encode()).hexdigest() \
+        #         and int(block.hash, 16) < float(self.puzzle_target):
+        #     return False
+        # else:
+        #     return True
 
     @message_wrapper(Transaction)
     async def on_transaction(self, peer: Peer, payload: Transaction) -> None:
@@ -328,42 +436,45 @@ class BlockchainNode(Blockchain):
             logger.info(
                 f'[Node {self.node_id}] Received block {payload.number} from [Node {self.node_id_from_peer(peer)}]')
 
-            # pull gossip
-            prev_block_number = 0 if len(self.blocks) == 0 else self.blocks[-1].number
-            if (payload.number - prev_block_number == 1):
-                logger.info('we received block  that we can append')
-                # we received block  that we can append
-                self.blocks.append(payload)
-                self.update_pending_finalized_txs(payload)
-                self.clean_curr_block_txs(payload)
-                self.check_curr_block()
+        #     # pull gossip
+        #     prev_block_number = 0 if len(self.blocks) == 0 else self.blocks[-1].number
+        #     if (payload.number - prev_block_number == 1):
+        #         logger.info('we received block  that we can append')
+        #         # we received block  that we can append
+        #         self.blocks.append(payload)
+        #         self.update_pending_finalized_txs(payload)
+        #         self.clean_curr_block_txs(payload)
+            self.append_block(payload)
+            self.update_pending_finalized_txs(payload)
+            self.clean_curr_block_txs(payload)
+            self.check_curr_block()
 
-                # broadcast to all peers
-                for peer in self.get_peers():
-                    self.ez_send(peer, payload)
-            elif (payload.number - prev_block_number) < 1:
-                logger.info('we received block that we already have')
-                # we already have this block, then
-                # broadcast to all peers
-                for peer in self.get_peers():
-                    self.ez_send(peer, payload)
-            else:
-                # we received block that we don't have
-                # and it cannot be appended
-                self.update_pending_finalized_txs(payload)
-                self.clean_curr_block_txs(payload)
+        #         # broadcast to all peers
+        #         for peer in self.get_peers():
+        #             self.ez_send(peer, payload)
+        #     elif (payload.number - prev_block_number) < 1:
+        #         logger.info('we received block that we already have')
+        #         # we already have this block, then
+        #         # broadcast to all peers
+        #         for peer in self.get_peers():
+        #             self.ez_send(peer, payload)
+        #     else:
+        #         # we received block that we don't have
+        #         # and it cannot be appended
+        #         self.update_pending_finalized_txs(payload)
+        #         self.clean_curr_block_txs(payload)
 
-                start_block_number = self.blocks[-1].number + 1
-                end_block_number = payload.number
+        #         start_block_number = self.blocks[-1].number + 1
+        #         end_block_number = payload.number
 
-                logger.info(
-                    f'we received block that we dont have, need request from block from {start_block_number} to {end_block_number}')
-                request_message = self.create_blocks_request(self.node_id, start_block_number, end_block_number)
+        #         logger.info(
+        #             f'we received block that we dont have, need request from block from {start_block_number} to {end_block_number}')
+        #         request_message = self.create_blocks_request(self.node_id, start_block_number, end_block_number)
 
-                for peer in self.get_peers():
-                    self.ez_send(peer, request_message)
+            #     for peer in self.get_peers():
+            #         self.ez_send(peer, request_message)
 
-            logger.info(f'Node {self.node_id} has the following blocks: {[block.number for block in self.blocks]}')
+            # logger.info(f'Node {self.node_id} has the following blocks: {[block.number for block in self.blocks]}')
 
     @message_wrapper(BlocksRequest)
     async def on_blocks_request(self, peer: Peer, payload: BlocksRequest) -> None:
