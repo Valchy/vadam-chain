@@ -23,13 +23,13 @@ function App() {
 		<div className="flex flex-col gap-6 items-center">
 			<div className="flex flex-col items-center">
 				<b className="mt-10 text-2xl">VADAM-CHAIN</b>
-				<p className="text-slate-500 mb-10 text-sm font-light mt-[2px]">When the speed of light is too slow, use vadam-chain.</p>
+				<p className="text-slate-500 mb-4 text-sm font-light mt-[2px]">When the speed of light is too slow, use vadam-chain.</p>
 			</div>
 			<div className="flex justify-between items-center w-full max-w-[480px]">
 				<div className="flex flex-col">
-					<span className="text-center mb-1">Sender</span>
+					<span className="text-center text-sm mb-1">Sender</span>
 					<Select>
-						<SelectTrigger className="w-[180px]">
+						<SelectTrigger className="w-[200px]">
 							<SelectValue placeholder="Select a node" />
 						</SelectTrigger>
 						<SelectContent>
@@ -42,11 +42,11 @@ function App() {
 						</SelectContent>
 					</Select>
 				</div>
-				<span className="mt-7">&gt;&gt;&gt;</span>
+				<span className="mt-7 !font-[fantasy]">&gt;&gt;&gt;</span>
 				<div className="flex flex-col">
-					<span className="text-center mb-1">Recepient</span>
+					<span className="text-center text-sm mb-1">Recepient</span>
 					<Select>
-						<SelectTrigger className="w-[180px]">
+						<SelectTrigger className="w-[200px]">
 							<SelectValue placeholder="Select a node" />
 						</SelectTrigger>
 						<SelectContent>
@@ -60,15 +60,15 @@ function App() {
 					</Select>
 				</div>
 			</div>
-			<Button onClick={handleTransaction} disabled={txBtnDisabled} className="mt-4 w-[200px]">
+			<Button onClick={handleTransaction} disabled={txBtnDisabled} className="mt-2 w-[160px]">
 				{txBtnDisabled && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
 				{txBtnDisabled ? 'Processing...' : 'Send Transaction'}
 			</Button>
-			<div className="mt-10">
+			<div className="mt-2">
 				<div className="flex justify-between items-center mb-5">
-					<h2 className="text-center font-light text-md mb-3">Transactions History</h2>
+					<h2 className="text-center font-light text-md">Transactions History</h2>
 					<Select>
-						<SelectTrigger className="w-[180px]">
+						<SelectTrigger className="w-[100px]">
 							<SelectValue placeholder="Select a node" />
 						</SelectTrigger>
 						<SelectContent>
