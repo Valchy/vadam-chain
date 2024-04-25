@@ -11,7 +11,6 @@ build/
 develop-eggs/
 dist/
 eggs/
-lib/
 lib64/
 parts/
 sdist/
@@ -53,5 +52,5 @@ docs/_build/
 venv
 .venv
 
-src/frontend/node_modules
 *.pem
+src/frontend/node_modules
