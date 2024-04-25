@@ -1,6 +1,6 @@
 import unittest
 
-from blockchain import Transaction, Block
+from src.algorithms.blockchain import Transaction, Block
 import hashlib
 import asyncio
 
