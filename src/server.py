@@ -26,27 +26,17 @@ async def get_transactions(node_port: int):
 @app.post("/send-message/{node_port}")
 async def send_message(node_port: int):
     logger.info(f'Send message api called received, node {node_port}')
+
+    # Trying to get ipv8 instance and error handling it
     ipv8_instance = app.ipv8_instances.get(node_port)
-
-    print('IF YOU SEE THIS. THIS WORKED', ipv8_instance.overlays[0].counter)
-    logger.info('STARTING NODES FROM SERVER')
-    ipv8_instance.overlays[0].on_web_start()
-    logger.info('NODES SHOULD START')
-    # ipv8_instance.overlays[0].start_client()
-
     if not ipv8_instance:
         raise HTTPException(status_code=404, detail="IPv8 instance not found")
-    
-    return {"status": "OK"}
-    
-    # Access the BlockchainNode community from your IPv8 instance
-    blockchain_node = ipv8_instance.overlay['blockchain_community']
-    print(blockchain_node)
 
-    if success:
-        return {"status": "Transaction sent"}
-    else:
-        raise HTTPException(status_code=500, detail="Failed to send transaction")
+    # Sending transaction
+    ipv8_instance.overlays[0].send_web_transaction()
+
+    # JSON response
+    return {"status": "sent"}
 
 # Host static files
 app.mount("/", StaticFiles(directory="static", html=True), name="static")

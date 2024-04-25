@@ -294,21 +294,9 @@ class BlockchainNode(Blockchain):
                 logger.info(f'Node {self.node_id} created new block with number {self.curr_block.number}')
                 logger.info(f'node {self.node_id} has the following blocks: {[block.number for block in self.blocks]}')
 
-    def on_web_start(self):
-        self.start_client()
-        self.start_validator()
-
     def on_start(self):
-        pass
-        # if  self.node_id == 0:
         # self.start_client()
-        # self.start_validator()
-        # if self.node_id % 2 == 0:
-        #     #  Run client
-        #     self.start_client()
-        # else:
-        #     # Run validator
-        #     self.start_validator()
+        self.start_validator()
 
     def start_client(self):
         # Create transaction and send to random validator
@@ -341,6 +329,7 @@ class BlockchainNode(Blockchain):
                 logger.info(f'It took {time.time() - now} seconds to mine this block {self.curr_block.number}')
                 return self.curr_block.hash
             self.curr_block.nonce += 1
+
     def start_validator(self):
         self.register_task("check_txs", self.check_transactions, delay=2, interval=1)
 
@@ -373,6 +362,27 @@ class BlockchainNode(Blockchain):
         #     return False
         # else:
         #     return True
+
+    def send_web_transaction(self, peer_recipient):
+        peer_recipient = random.choice([i for i in self.get_peers()])
+        peer = peer_recipient
+        peer_id = self.node_id_from_peer(peer)
+
+        tx = Transaction(self.node_id, peer_id, 10, b'', b'', '', self.counter)
+        tx.public_key_bin = self.my_peer.public_key.key_to_bin()
+        tx.tx_id = hashlib.sha256(f'{hexlify(tx.public_key_bin)}{tx.nonce}'.encode()).hexdigest()
+
+        self.sign_transaction(tx)
+        self.counter += 1
+        self.pending_txs.append(tx)
+
+        for peer in list(self.get_peers()):
+            self.ez_send(peer, tx)
+
+        if self.counter > self.max_messages:
+            self.cancel_pending_task("tx_create")
+            self.stop()
+            return
 
     @message_wrapper(Transaction)
     async def on_transaction(self, peer: Peer, payload: Transaction) -> None:
