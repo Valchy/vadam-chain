@@ -38,7 +38,7 @@ class Transaction:
     signature: bytes
     tx_id: str
     nonce: int
-    ttl: int = 3
+    ttl: int = 2
 
     # def __post_init__(self):
     #     self.tx_id = hashlib.sha256(f'{self.sender}{self.receiver}{self.amount}{self.nonce}'.encode()).hexdigest()
@@ -69,7 +69,7 @@ class Block:
         return "".join([tx.tx_id for tx in self.transactions]) + str(self.nonce)
 
     def add_transaction(self, transaction: Transaction) -> bool:
-        if len(self.transactions) < 10:
+        if len(self.transactions) < 5:
             if transaction not in self.transactions:
                 self.transactions.append(transaction)
             return True
@@ -295,8 +295,9 @@ class BlockchainNode(Blockchain):
                 logger.info(f'node {self.node_id} has the following blocks: {[block.number for block in self.blocks]}')
 
     def on_start(self):
+        pass
         # self.start_client()
-        self.start_validator()
+        # self.start_validator()
 
     def start_client(self):
         # Create transaction and send to random validator

@@ -22,7 +22,7 @@ async def start_communities(peer_num, use_localhost=True) -> None:
     logger.info('Community started')
     base_port = 9090
     ipv8_instances = {}
-    
+
     topology = generate_topology(generate_ring_topology(peer_num), 5)
     logger.info(f'topology : {topology}')
 
@@ -52,4 +52,4 @@ async def start_communities(peer_num, use_localhost=True) -> None:
 
     await run_forever()
 
-run(start_communities(10))
+run(start_communities(3))
