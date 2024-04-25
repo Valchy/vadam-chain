@@ -5,7 +5,7 @@ from binascii import hexlify
 from collections import defaultdict
 from dataclasses import dataclass
 import time
-import asyncio
+from decimal import Decimal
 
 from ipv8.community import CommunitySettings
 from ipv8.messaging.payload_dataclass import overwrite_dataclass
@@ -264,17 +264,14 @@ class BlockchainNode(Blockchain):
         # Debugging output to trace chains
         try:
             print(f'Node {self.node_id} has {len(chains)} chains')
+            logger.info(f'Node {self.node_id} has {len(chains)} chains')
             for chain in chains:
-                print(f'Chain length: {len(chain)}')
+                logger.info(f'Chain length: {len(chain)}')
                 for block in chain:
-                    print(f'Block number: {block.number}, hash: {block.hash}')
+                    logger.info(f'Block number: {block.number}, hash: {block.hash}')
         except Exception as e:
-            print(f"An error occurred while printing chain details: {e}")
+            logger.info(f"An error occurred while printing chain details: {e}")
 
-
-
-
-    def check_curr_block(self) -> bool:
     def check_curr_block(self) :
         logger.info(f'Node {self.node_id} is checking self.curr_block!')
         for txs in self.pending_txs:
@@ -438,7 +435,10 @@ class BlockchainNode(Blockchain):
         #         self.blocks.append(payload)
         #         self.update_pending_finalized_txs(payload)
         #         self.clean_curr_block_txs(payload)
-        #         self.check_curr_block()
+            self.append_block(payload)
+            self.update_pending_finalized_txs(payload)
+            self.clean_curr_block_txs(payload)
+            self.check_curr_block()
 
         #         # broadcast to all peers
         #         for peer in self.get_peers():
