@@ -53,7 +53,7 @@ class Block:
     prev_block_hash: str
     difficulty: str
     puzzle_target: str
-    transactions: [Transaction]
+    transactions: list[Transaction]
     time: int
     hash: str
     nonce: int
@@ -364,11 +364,7 @@ class BlockchainNode(Blockchain):
         #     return True
 
     def send_web_transaction(self, peer_recipient):
-        peer_recipient = random.choice([i for i in self.get_peers()])
-        peer = peer_recipient
-        peer_id = self.node_id_from_peer(peer)
-
-        tx = Transaction(self.node_id, peer_id, 10, b'', b'', '', self.counter)
+        tx = Transaction(self.node_id, peer_recipient, 10, b'', b'', '', self.counter)
         tx.public_key_bin = self.my_peer.public_key.key_to_bin()
         tx.tx_id = hashlib.sha256(f'{hexlify(tx.public_key_bin)}{tx.nonce}'.encode()).hexdigest()
 

@@ -6,8 +6,8 @@ import logging
 from pydantic import BaseModel
 
 class TransactionBody(BaseModel):
-    peer_sender: int
-    peer_recipient: int
+    node_id: int
+    peer_id: int
 
 # Create logger
 setup_logging()
@@ -22,22 +22,21 @@ async def get_transactions(node_port: int):
 
     ipv8_instance = app.ipv8_instances.get(node_port)
     transactions = ipv8_instance.overlays[0].finalized_txs
-    print(transactions, len(transactions))
     
     return {"status": "OK", "transactions-made": len(transactions)}
 
 @app.post("/send-transaction")
 async def send_message(data: TransactionBody):
-    logger.info(f'Send message api called received, node {data.peer_sender}...')
+    logger.info(f'Send message api called received, node {data.node_id}...')
 
-    # Todo: Error handling if peer_sender and peer_recipient are valid
+    # Todo: Error handling if node_id and peer_id are valid
 
     # Sending transaction
-    ipv8_instance = app.ipv8_instances.get(data.peer_sender)
-    ipv8_instance.overlays[0].send_web_transaction(data.peer_recipient)
+    ipv8_instance = app.ipv8_instances.get(data.node_id).overlays[0]
+    ipv8_instance.send_web_transaction(data.peer_id)
 
     # JSON response
-    return {"status": "sent"}
+    return {"status": "sent", "node_id": data.node_id, "peer_id": data.peer_id}
 
 # Host static files
 app.mount("/", StaticFiles(directory="static", html=True), name="static")
