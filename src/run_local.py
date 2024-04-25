@@ -52,4 +52,5 @@ async def start_communities(peer_num, use_localhost=True) -> None:
 
     await run_forever()
 
-run(start_communities(3))
+if __name__ == "__main__":
+    run(start_communities(3))

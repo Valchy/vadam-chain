@@ -54,3 +54,5 @@ venv
 .venv
 
 *.pem
+
+src/frontend/node_modules
