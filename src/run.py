@@ -5,7 +5,7 @@ from ipv8.configuration import ConfigBuilder, default_bootstrap_defs
 from ipv8.util import create_event_with_signals
 from ipv8_service import IPv8
 from algorithms import *
-from blockchain import BlockchainNode
+from src.algorithms.blockchain import BlockchainNode
 from da_types import Blockchain
 
 

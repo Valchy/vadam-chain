@@ -5,7 +5,7 @@ from ipv8.configuration import ConfigBuilder, default_bootstrap_defs
 from ipv8.util import run_forever, create_event_with_signals
 from ipv8_service import IPv8
 
-from blockchain import BlockchainNode
+from src.algorithms.blockchain import BlockchainNode
 
 from log.logging_config import *
 from utilities.generate_topology import generate_ring_topology, generate_topology
