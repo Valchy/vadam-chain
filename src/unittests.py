@@ -1,8 +1,6 @@
 import unittest
-from ipv8.community import CommunitySettings
-from ipv8.overlay import Settings
 
-from algorithms.blockchain import Transaction, Block, BlockchainNode, Blockchain
+from blockchain import Transaction, Block
 import hashlib
 import asyncio
 
