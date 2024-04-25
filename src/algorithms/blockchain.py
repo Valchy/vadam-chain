@@ -77,25 +77,25 @@ class Block:
         else:
             return False
 
-    def mine(self):
-        now = time.time()
-        loop = asyncio.get_event_loop()
-        logger.info(f'Someone is mining block {self.number}...')
-        while True:
-            self.hashing_value = self.get_hashing_value()
-            self.hash = hashlib.sha256(self.hashing_value.encode()).hexdigest()
-            # Use 2^target for comparison
-            target_value = 2 ** Decimal(self.puzzle_target)
-
-            if int(self.hash, 16) < target_value:
-                self.time = int(self.prev_block_time + time.time() - now)
-                logger.info(f'Block {self.number} is mined. Here is hash: {self.hash}')
-                logger.info(f'Block {self.number} based on hashing value:{self.hashing_value}')
-                logger.info(f'Block {self.number} based on nonce:{self.nonce}')
-                logger.info(f'It took {time.time() - now} seconds to mine this block {self.number}')
-                return self.hash
-            self.nonce += 1
-
+    # def mine(self):
+    #     now = time.time()
+    #     loop = asyncio.get_event_loop()
+    #     logger.info(f'Someone is mining block {self.number}...')
+    #     while True:
+    #         self.hashing_value = self.get_hashing_value()
+    #         self.hash = hashlib.sha256(self.hashing_value.encode()).hexdigest()
+    #         # Use 2^target for comparison
+    #         target_value = 2 ** Decimal(self.puzzle_target)
+    # 
+    #         if int(self.hash, 16) < target_value:
+    #             self.time = int(self.prev_block_time + time.time() - now)
+    #             logger.info(f'Block {self.number} is mined. Here is hash: {self.hash}')
+    #             logger.info(f'Block {self.number} based on hashing value:{self.hashing_value}')
+    #             logger.info(f'Block {self.number} based on nonce:{self.nonce}')
+    #             logger.info(f'It took {time.time() - now} seconds to mine this block {self.number}')
+    #             return self.hash
+    #         self.nonce += 1
+        
 
 
 @dataclass(
@@ -237,21 +237,24 @@ class BlockchainNode(Blockchain):
         for peer in list(self.get_peers()):
             self.ez_send(peer, self.curr_block)
 
-    def check_curr_block(self) -> bool:
+    def check_curr_block(self) :
         logger.info(f'Node {self.node_id} is checking self.curr_block!')
         for txs in self.pending_txs:
             result = self.curr_block.add_transaction(txs)
             if result == False:
                 logger.info(f'{self.node_id} has full cur_block!')
-                self.curr_block.mine()
-                self.broadcast_current_block()
+                self.cancel_pending_task("mine_block")
+                self.register_mine_task()
                 self.update_pending_finalized_txs(self.curr_block)
-                prev_block_number = 0 if len(self.blocks) == 0 else self.blocks[-1].number
-                if prev_block_number + 1 == self.curr_block.number:
-                    self.blocks.append(self.curr_block)
+                # prev_block_number = 0 if len(self.blocks) == 0 else self.blocks[-1].number
+                # if prev_block_number + 1 == self.curr_block.number:
+                self.blocks.append(self.curr_block)
                 for peer in self.get_peers():
+                    logger.info(f'sending block {self.curr_block.number}')
                     self.ez_send(peer, self.curr_block)
                 self.create_block()
+                # self.register_mine_task()
+
 
     def on_start(self):
         # if  self.node_id == 0:
@@ -274,7 +277,27 @@ class BlockchainNode(Blockchain):
                            self.check_curr_block, delay=1,
                            interval=1)
 
+    def register_mine_task(self):
+        self.register_task("mine_block", self.mine)
 
+    def mine(self):
+        now = time.time()
+        # loop = asyncio.get_event_loop()
+        logger.info(f'Someone is mining block {self.curr_block.number}...')
+        while True:
+            self.curr_block.hashing_value = self.curr_block.get_hashing_value()
+            self.curr_block.hash = hashlib.sha256(self.curr_block.hashing_value.encode()).hexdigest()
+            # Use 2^target for comparison
+            target_value = 2 ** Decimal(self.curr_block.puzzle_target)
+
+            if int(self.curr_block.hash, 16) < target_value:
+                self.curr_block.time = int(self.curr_block.prev_block_time + time.time() - now)
+                logger.info(f'Block {self.curr_block.number} is mined. Here is hash: {self.curr_block.hash}')
+                logger.info(f'Block {self.curr_block.number} based on hashing value:{self.curr_block.hashing_value}')
+                logger.info(f'Block {self.curr_block.number} based on nonce:{self.curr_block.nonce}')
+                logger.info(f'It took {time.time() - now} seconds to mine this block {self.curr_block.number}')
+                return self.curr_block.hash
+            self.curr_block.nonce += 1
     def start_validator(self):
         self.register_task("check_txs", self.check_transactions, delay=2, interval=1)
 
