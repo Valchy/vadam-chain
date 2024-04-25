@@ -33,14 +33,12 @@ dataclass = overwrite_dataclass(dataclass)
 class Transaction:
     sender: int
     receiver: int
-    is_uniswap = False
-    coin = "ETH"
     amount: int
     public_key_bin: bytes
     signature: bytes
     tx_id: str
     nonce: int
-    ttl: int = 3
+    ttl: int = 2
 
     # def __post_init__(self):
     #     self.tx_id = hashlib.sha256(f'{self.sender}{self.receiver}{self.amount}{self.nonce}'.encode()).hexdigest()
@@ -55,7 +53,7 @@ class Block:
     prev_block_hash: str
     difficulty: str
     puzzle_target: str
-    transactions: [Transaction]
+    transactions: list[Transaction]
     time: int
     hash: str
     nonce: int
@@ -66,12 +64,12 @@ class Block:
         # self.nonce = 0
         self.hashing_value = ""
 
-    def get_hashing_value(self, public_key_bin):
+    def get_hashing_value(self):
         # fix bug: 'Transaction' object has no attribute 'tx_id'
-        return "".join([tx.tx_id for tx in self.transactions]) + str(self.nonce) + str(self.number) + str(public_key_bin)
+        return "".join([tx.tx_id for tx in self.transactions]) + str(self.nonce)
 
     def add_transaction(self, transaction: Transaction) -> bool:
-        if len(self.transactions) < 10:
+        if len(self.transactions) < 5:
             if transaction not in self.transactions:
                 self.transactions.append(transaction)
             return True
@@ -112,57 +110,6 @@ class BlocksRequest:
             f'{self.sender}{self.start_block_number}{self.end_block_number}'.encode()).hexdigest()
 
 
-# class LiquidityPool:
-#     def __init__(self):
-#         self.pools = {'BTC': 10000, 'ETH': 100000}
-#         self.c = self.pools["BTC"] * self.pools["ETH"]
-#
-#     def add_liquidity(self, btc_amount, eth_amount):
-#         self.pools['BTC'] += btc_amount
-#         self.pools['ETH'] += eth_amount
-#         print(f"Added liquidity: {btc_amount} BTC and {eth_amount} ETH")
-#
-#     def remove_liquidity(self, btc_amount, eth_amount):
-#         if self.pools['BTC'] >= btc_amount and self.pools['ETH'] >= eth_amount:
-#             self.pools['BTC'] -= btc_amount
-#             self.pools['ETH'] -= eth_amount
-#             print(f"Removed liquidity: {btc_amount} BTC and {eth_amount} ETH")
-#         else:
-#             print("Insufficient liquidity to remove.")
-
-
-# @dataclass(
-#     msg_id=4
-# )
-# class UniswapTransactions:
-#     def __init__(self, node):
-#         self.node = node
-#
-#     def swap(self, from_coin, to_coin, amount):
-#         if self.node.get_balance(from_coin) >= amount:
-#             self.node.update_balance(from_coin, -amount)
-#             self.node.update_balance(to_coin, amount * to_coin/from_coin)
-#             print(f"Swapped {amount} {from_coin} for {amount} {to_coin}")
-#         else:
-#             print(f"Not enough {from_coin} to perform the swap.")
-#
-#     def add_liquidity(self, btc_amount, eth_amount):
-#         if self.node.get_balance('BTC') >= btc_amount and self.node.get_balance('ETH') >= eth_amount:
-#             self.node.update_balance('BTC', -btc_amount)
-#             self.node.update_balance('ETH', -eth_amount)
-#             self.node.liquidity_pool.add_liquidity(btc_amount, eth_amount)
-#         else:
-#             print("Insufficient balance to add liquidity.")
-#
-#     def exit_liquidity(self, btc_amount, eth_amount):
-#         if self.node.liquidity_pool.pools['BTC'] >= btc_amount and self.node.liquidity_pool.pools['ETH'] >= eth_amount:
-#             self.node.update_balance('BTC', btc_amount)
-#             self.node.update_balance('ETH', eth_amount)
-#             self.node.liquidity_pool.remove_liquidity(btc_amount, eth_amount)
-#         else:
-#             print("Insufficient liquidity to exit.")
-
-
 class BlockchainNode(Blockchain):
 
     def __init__(self, settings: CommunitySettings) -> None:
@@ -173,9 +120,7 @@ class BlockchainNode(Blockchain):
 
         self.pending_txs: list[Transaction] = []
         self.finalized_txs: list[Transaction] = []
-        self.balances = defaultdict(lambda:  {'BTC': 100, 'ETH': 1000})
-        self.pools = {'BTC': 10000, 'ETH': 100000}
-        self.c = self.pools["BTC"] * self.pools["ETH"]
+        self.balances = defaultdict(lambda: 1000)
         self.blocks: list[Block] = []
         self.longest_chain: list[Block] = []
         self.collision_num: int = 0
@@ -191,23 +136,6 @@ class BlockchainNode(Blockchain):
         self.add_message_handler(Transaction, self.on_transaction)
         self.add_message_handler(Block, self.on_block)
         self.add_message_handler(BlocksRequest, self.on_blocks_request)
-
-    def add_liquidity(self, btc_amount, eth_amount):
-        self.pools['BTC'] += btc_amount
-        self.pools['ETH'] += eth_amount
-        self.balances['BTC'] -= btc_amount
-        self.balances['ETH'] -= eth_amount
-        print(f"Added liquidity: {btc_amount} BTC and {eth_amount} ETH")
-
-    def remove_liquidity(self, btc_amount, eth_amount):
-        if self.pools['BTC'] >= btc_amount and self.pools['ETH'] >= eth_amount:
-            self.pools['BTC'] -= btc_amount
-            self.pools['ETH'] -= eth_amount
-            self.balances['BTC'] += btc_amount
-            self.balances['ETH'] += eth_amount
-            print(f"Removed liquidity: {btc_amount} BTC and {eth_amount} ETH")
-        else:
-            print("Insufficient liquidity to remove.")
 
     def create_block(self):
         self.calculate_difficulty()
@@ -303,27 +231,6 @@ class BlockchainNode(Blockchain):
             self.stop()
             return
 
-    def create_uniswap_transaction(self, coin):
-        tx = Transaction(self.node_id, self.node_id, is_uniswap=True, coin=coin, public_key_bin=b'', signature=b'', tx_id='', nonce=self.counter)
-        tx.public_key_bin = self.my_peer.public_key.key_to_bin()
-        # tx.tx_id = hashlib.sha256(f'{tx.sender}{tx.receiver}{tx.amount}{tx.nonce}'.encode()).hexdigest()
-        tx.tx_id = hashlib.sha256(f'{hexlify(tx.public_key_bin)}{tx.nonce}'.encode()).hexdigest()
-        self.sign_transaction(tx)
-        self.counter += 1
-        self.pending_txs.append(tx)
-        if coin == 'BTC':
-            self.pools['BTC'] -= tx.amount
-            self.pools['ETH'] += tx.amount
-        else:
-            self.pools['BTC'] += tx.amount
-            self.pools['ETH'] -= tx.amount
-        for peer in list(self.get_peers()):
-            self.ez_send(peer, tx)
-        if self.counter > self.max_messages:
-            self.cancel_pending_task("tx_create")
-            self.stop()
-            return
-
     def append_block(self, block: Block):
         self.blocks.append(block)
         self.blocks.sort(key=lambda x: x.number)
@@ -376,19 +283,21 @@ class BlockchainNode(Blockchain):
                 logger.info(f'{self.node_id} has full cur_block!')
                 self.cancel_pending_task("mine_block")
                 self.register_mine_task()
+                self.update_pending_finalized_txs(self.curr_block)
+                self.append_block(self.curr_block)
+                for peer in self.get_peers():
+                    logger.info(f'sending block {self.curr_block.number}')
+                    self.ez_send(peer, self.curr_block)
+                self.create_block()
+                # self.register_mine_task()
+
                 logger.info(f'Node {self.node_id} created new block with number {self.curr_block.number}')
                 logger.info(f'node {self.node_id} has the following blocks: {[block.number for block in self.blocks]}')
 
     def on_start(self):
-        # if  self.node_id == 0:
-        self.start_client()
-        self.start_validator()
-        # if self.node_id % 2 == 0:
-        #     #  Run client
-        #     self.start_client()
-        # else:
-        #     # Run validator
-        #     self.start_validator()
+        pass
+        # self.start_client()
+        # self.start_validator()
 
     def start_client(self):
         # Create transaction and send to random validator
@@ -408,7 +317,7 @@ class BlockchainNode(Blockchain):
         # loop = asyncio.get_event_loop()
         logger.info(f'Someone is mining block {self.curr_block.number}...')
         while True:
-            self.curr_block.hashing_value = self.curr_block.get_hashing_value(self.my_peer.public_key.key_to_bin())
+            self.curr_block.hashing_value = self.curr_block.get_hashing_value()
             self.curr_block.hash = hashlib.sha256(self.curr_block.hashing_value.encode()).hexdigest()
             # Use 2^target for comparison
             target_value = 2 ** Decimal(self.curr_block.puzzle_target)
@@ -419,37 +328,20 @@ class BlockchainNode(Blockchain):
                 logger.info(f'Block {self.curr_block.number} based on hashing value:{self.curr_block.hashing_value}')
                 logger.info(f'Block {self.curr_block.number} based on nonce:{self.curr_block.nonce}')
                 logger.info(f'It took {time.time() - now} seconds to mine this block {self.curr_block.number}')
-                self.append_block(self.curr_block)
-                self.update_pending_finalized_txs(self.curr_block)
-                for peer in self.get_peers():
-                    logger.info(f'sending block {self.curr_block.number}')
-                    self.ez_send(peer, self.curr_block)
-                self.create_block()
                 return self.curr_block.hash
             self.curr_block.nonce += 1
+
     def start_validator(self):
         self.register_task("check_txs", self.check_transactions, delay=2, interval=1)
 
     def check_transactions(self):
         for tx in self.pending_txs:
             # block = self.find_block_for_transaction(tx)
-            if tx.is_uniswap == False:
-                if self.balances[tx.sender][tx.coin] - tx.amount >= 0:
-                    self.balances[tx.sender][tx.coin] -= tx.amount
-                    self.balances[tx.receiver][tx.coin] += tx.amount
-                    # self.pending_txs.remove(tx)
-                    # self.finalized_txs.append(tx)
-            else:
-                if tx.coin == "ETH":
-                    if self.balances[tx.sender][tx.coin] - tx.amount >= 0:
-                        self.balances[tx.sender][tx.coin] -= tx.amount
-                        self.balances[tx.receiver]["BTC"] += tx.amount
-                else:
-                    if self.balances[tx.sender][tx.coin] - tx.amount >= 0:
-                        self.balances[tx.sender][tx.coin] -= tx.amount
-                        self.balances[tx.receiver]["ETH"] += tx.amount
-
-
+            if self.balances[tx.sender] - tx.amount >= 0:
+                self.balances[tx.sender] -= tx.amount
+                self.balances[tx.receiver] += tx.amount
+                # self.pending_txs.remove(tx)
+                # self.finalized_txs.append(tx)
 
         self.executed_checks += 1
 
@@ -471,6 +363,23 @@ class BlockchainNode(Blockchain):
         #     return False
         # else:
         #     return True
+
+    def send_web_transaction(self, peer_recipient):
+        tx = Transaction(self.node_id, peer_recipient, 10, b'', b'', '', self.counter)
+        tx.public_key_bin = self.my_peer.public_key.key_to_bin()
+        tx.tx_id = hashlib.sha256(f'{hexlify(tx.public_key_bin)}{tx.nonce}'.encode()).hexdigest()
+
+        self.sign_transaction(tx)
+        self.counter += 1
+        self.pending_txs.append(tx)
+
+        for peer in list(self.get_peers()):
+            self.ez_send(peer, tx)
+
+        if self.counter > self.max_messages:
+            self.cancel_pending_task("tx_create")
+            self.stop()
+            return
 
     @message_wrapper(Transaction)
     async def on_transaction(self, peer: Peer, payload: Transaction) -> None:
@@ -527,7 +436,8 @@ class BlockchainNode(Blockchain):
         self.curr_block.transactions = new_txs_list
 
     @message_wrapper(Block)
-    def on_block(self, peer: Peer, payload: Block) -> None:
+    async def on_block(self, peer: Peer, payload: Block) -> None:
+        logger.info('HERE HERE HERE HERE HERE BLOCK')
         if self.verify_block(payload):
             print(f'[Node {self.node_id}] Received block {payload.number} from [Node {self.node_id_from_peer(peer)}]')
             logger.info(
@@ -542,7 +452,6 @@ class BlockchainNode(Blockchain):
         #         self.update_pending_finalized_txs(payload)
         #         self.clean_curr_block_txs(payload)
             self.append_block(payload)
-            # only if the block is for longest chain
             self.update_pending_finalized_txs(payload)
             self.clean_curr_block_txs(payload)
             self.check_curr_block()
@@ -575,7 +484,7 @@ class BlockchainNode(Blockchain):
             # logger.info(f'Node {self.node_id} has the following blocks: {[block.number for block in self.blocks]}')
 
     @message_wrapper(BlocksRequest)
-    def on_blocks_request(self, peer: Peer, payload: BlocksRequest) -> None:
+    async def on_blocks_request(self, peer: Peer, payload: BlocksRequest) -> None:
         logger.info(f'Node {self.node_id} has the following blocks: {[block.number for block in self.blocks]}')
         logger.info(
             f'Node {self.node_id} received block request from {payload.start_block_number} to {payload.end_block_number}')
