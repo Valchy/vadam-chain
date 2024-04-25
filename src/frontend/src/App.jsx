@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 
@@ -9,32 +9,63 @@ import { Toaster } from './components/Toast';
 
 function App() {
 	const [txBtnDisabled, setTxBtnDisabled] = useState(false);
+	const [chosenTxHistoryNode, setChosenTxHistoryNode] = useState(9090);
+	const [txHistory, setTxHistory] = useState(0);
+	const [senderPeer, setSenderPeer] = useState(undefined);
+	const [recipientPeer, setRecipientPeer] = useState(undefined);
+	const [key, setKey] = useState(new Date());
 
+	// Request transaction from specific node
+	const getTransactions = useCallback(
+		() =>
+			fetch(`http://localhost:8000/get-transactions/${chosenTxHistoryNode}`, {
+				method: 'GET',
+				redirect: 'follow',
+			})
+				.then(response => response.json())
+				.then(result => {
+					console.log(result);
+					setTxHistory(result.transactions_made);
+				})
+				.catch(error => console.error(error)),
+		[chosenTxHistoryNode],
+	);
+
+	// Pull transactions every second
+	useEffect(() => {
+		getTransactions();
+		setTimeout(() => getTransactions, 1000);
+	}, [getTransactions]);
+
+	// Handle sending transaction
 	const handleTransaction = () => {
+		if (!senderPeer) return toast('Please select a sender peer!');
+		if (!recipientPeer) return toast('Please select a recipient peer!');
+		if (senderPeer % 10 === recipientPeer) return toast('Please select different sender and recipient peer!');
+
 		setTxBtnDisabled(true);
-		const myHeaders = new Headers();
-		myHeaders.append('Content-Type', 'application/json');
 
-		const raw = JSON.stringify({
-			node_id: 9090,
-			peer_id: 3,
-		});
-
-		const requestOptions = {
+		fetch('http://localhost:8000/send-transaction', {
 			method: 'POST',
-			headers: myHeaders,
-			body: raw,
+			headers: {
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify({
+				node_id: senderPeer,
+				peer_id: recipientPeer,
+			}),
 			redirect: 'follow',
-		};
-
-		fetch('http://localhost:8000/send-transaction', requestOptions)
-			.then(response => response.text())
+		})
+			.then(response => response.json())
 			.then(result => console.log(result))
 			.catch(error => console.error(error));
 
 		setTimeout(() => {
 			toast('Transaction successfully sent!');
 			setTxBtnDisabled(false);
+			setSenderPeer(undefined);
+			setRecipientPeer(undefined);
+			setKey(new Date());
 		}, 2500); // so it looks cooler ;)
 	};
 
@@ -47,33 +78,33 @@ function App() {
 			<div className="flex justify-between items-center w-full max-w-[480px]">
 				<div className="flex flex-col">
 					<span className="text-center text-sm mb-1">Sender</span>
-					<Select>
+					<Select key={key} value={senderPeer} onValueChange={val => setSenderPeer(val)}>
 						<SelectTrigger className="w-[200px]">
-							<SelectValue placeholder="Select a node" />
+							<SelectValue placeholder="Select a peer..." />
 						</SelectTrigger>
 						<SelectContent>
 							<SelectGroup>
 								<SelectLabel>Sender</SelectLabel>
-								<SelectItem value={0}>Node 1</SelectItem>
-								<SelectItem value={1}>Node 2</SelectItem>
-								<SelectItem value={2}>Node 3</SelectItem>
+								<SelectItem value={9090}>Peer 1</SelectItem>
+								<SelectItem value={9091}>Peer 2</SelectItem>
+								<SelectItem value={9092}>Peer 3</SelectItem>
 							</SelectGroup>
 						</SelectContent>
 					</Select>
 				</div>
-				<span className="mt-7 !font-[fantasy]">&gt;&gt;&gt;</span>
+				<span className="mt-7 !font-[monospace]">&gt;&gt;&gt;</span>
 				<div className="flex flex-col">
 					<span className="text-center text-sm mb-1">Recipient</span>
-					<Select>
+					<Select key={key} value={recipientPeer} onValueChange={val => setRecipientPeer(val)}>
 						<SelectTrigger className="w-[200px]">
-							<SelectValue placeholder="Select a node" />
+							<SelectValue placeholder="Select a peer..." />
 						</SelectTrigger>
 						<SelectContent>
 							<SelectGroup>
 								<SelectLabel>Recipient</SelectLabel>
-								<SelectItem value={0}>Node 1</SelectItem>
-								<SelectItem value={1}>Node 2</SelectItem>
-								<SelectItem value={2}>Node 3</SelectItem>
+								<SelectItem value={0}>Peer 1</SelectItem>
+								<SelectItem value={1}>Peer 2</SelectItem>
+								<SelectItem value={2}>Peer 3</SelectItem>
 							</SelectGroup>
 						</SelectContent>
 					</Select>
@@ -86,16 +117,22 @@ function App() {
 			<div className="mt-2">
 				<div className="flex justify-between items-center mb-5">
 					<h2 className="text-center font-light text-md">Transactions History</h2>
-					<Select>
-						<SelectTrigger className="w-[100px]">
-							<SelectValue placeholder="Select a node" />
+					<Select
+						value={chosenTxHistoryNode}
+						onValueChange={val => {
+							setChosenTxHistoryNode(val);
+							getTransactions();
+						}}
+					>
+						<SelectTrigger className="w-[140px]">
+							<SelectValue placeholder="Choose node..." />
 						</SelectTrigger>
 						<SelectContent>
 							<SelectGroup>
 								<SelectLabel>Fetch data from</SelectLabel>
-								<SelectItem value={0}>Node 1</SelectItem>
-								<SelectItem value={1}>Node 2</SelectItem>
-								<SelectItem value={2}>Node 3</SelectItem>
+								<SelectItem value={9090}>Node 1</SelectItem>
+								<SelectItem value={9091}>Node 2</SelectItem>
+								<SelectItem value={9092}>Node 3</SelectItem>
 							</SelectGroup>
 						</SelectContent>
 					</Select>
@@ -115,8 +152,8 @@ function App() {
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{[1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6].map(i => (
-							<TableRow>
+						{[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18].map(i => (
+							<TableRow key={i}>
 								<TableCell className="font-medium">
 									<div className="flex justify-between">
 										<span>TX-000000{i}</span>
@@ -129,7 +166,7 @@ function App() {
 							</TableRow>
 						))}
 					</TableBody>
-					<TableCaption>List of all processed transactions.</TableCaption>
+					<TableCaption>List of all processed transactions ({txHistory})</TableCaption>
 				</Table>
 			</div>
 			<Toaster />
