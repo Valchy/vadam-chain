@@ -52,3 +52,6 @@ docs/_build/
 # Virtual Environment
 venv
 .venv
+
+src/frontend/node_modules
+*.pem
