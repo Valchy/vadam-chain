@@ -3,6 +3,11 @@ from fastapi.staticfiles import StaticFiles
 import uvicorn
 from log.logging_config import setup_logging
 import logging
+from pydantic import BaseModel
+
+class TransactionBody(BaseModel):
+    peer_sender: int
+    peer_recipient: int
 
 # Create logger
 setup_logging()
@@ -13,27 +18,23 @@ app = FastAPI()
 
 @app.get("/get-transactions/{node_port}")
 async def get_transactions(node_port: int):
-    logger.info('Getting transactions')
+    logger.info('Received API requst to GET Transactions...')
+
     ipv8_instance = app.ipv8_instances.get(node_port)
     transactions = ipv8_instance.overlays[0].finalized_txs
     print(transactions, len(transactions))
-
-    if not ipv8_instance:
-        raise HTTPException(status_code=404, detail="IPv8 instance not found")
     
     return {"status": "OK", "transactions-made": len(transactions)}
 
-@app.post("/send-message/{node_port}")
-async def send_message(node_port: int):
-    logger.info(f'Send message api called received, node {node_port}')
+@app.post("/send-transaction")
+async def send_message(data: TransactionBody):
+    logger.info(f'Send message api called received, node {data.peer_sender}...')
 
-    # Trying to get ipv8 instance and error handling it
-    ipv8_instance = app.ipv8_instances.get(node_port)
-    if not ipv8_instance:
-        raise HTTPException(status_code=404, detail="IPv8 instance not found")
+    # Todo: Error handling if peer_sender and peer_recipient are valid
 
     # Sending transaction
-    ipv8_instance.overlays[0].send_web_transaction()
+    ipv8_instance = app.ipv8_instances.get(data.peer_sender)
+    ipv8_instance.overlays[0].send_web_transaction(data.peer_recipient)
 
     # JSON response
     return {"status": "sent"}
@@ -44,8 +45,6 @@ app.mount("/", StaticFiles(directory="static", html=True), name="static")
 def run_web_server(ipv8_instances):
     app.ipv8_instances = ipv8_instances
     port = 8000
-
-    logger.info(ipv8_instances)
 
     while True:
         try:

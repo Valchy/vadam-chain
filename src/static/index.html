@@ -11,18 +11,25 @@
 
 	<script type="text/javascript">
 		function makeTX() {
-			var xhr = new XMLHttpRequest();
-			xhr.withCredentials = true;
+			const myHeaders = new Headers();
+			myHeaders.append('Content-Type', 'application/json');
 
-			xhr.addEventListener('readystatechange', function () {
-				if (this.readyState === 4) {
-					console.log(this.responseText);
-				}
+			const raw = JSON.stringify({
+				peer_sender: 9090,
+				peer_recipient: 9091
 			});
 
-			xhr.open('POST', 'http://localhost:8000/send-message/9091');
+			const requestOptions = {
+				method: 'POST',
+				headers: myHeaders,
+				body: raw,
+				redirect: 'follow'
+			};
 
-			xhr.send();
+			fetch('http://localhost:8000/send-transaction', requestOptions)
+				.then(response => response.text())
+				.then(result => console.log(result))
+				.catch(error => console.error(error));
 		}
 	</script>
 </html>
