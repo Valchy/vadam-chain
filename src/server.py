@@ -39,7 +39,7 @@ async def send_message(data: TransactionBody):
     return {"status": "sent", "node_id": data.node_id, "peer_id": data.peer_id}
 
 # Host static files
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
+app.mount("/", StaticFiles(directory="static/build", html=True), name="static")
 
 def run_web_server(ipv8_instances):
     app.ipv8_instances = ipv8_instances

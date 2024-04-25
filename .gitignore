@@ -54,3 +54,5 @@ venv
 .venv
 
 *.pem
+
+src/static/node_modules
