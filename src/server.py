@@ -21,9 +21,29 @@ async def get_transactions(node_port: int):
     logger.info('Received API requst to GET Transactions...')
 
     ipv8_instance = app.ipv8_instances.get(node_port)
-    transactions = ipv8_instance.overlays[0].finalized_txs
+    pending_transactions = ipv8_instance.overlays[0].pending_txs
+    finalized_transactions = ipv8_instance.overlays[0].finalized_txs
+    transactions = []
+
+    for tx in pending_transactions:
+        transactions.append({
+            "status": "pending",
+            "hash_id": tx.tx_id,
+            "amount": tx.amount,
+            "sender": tx.sender,
+            "receiver": tx.receiver
+        })
+
+    for tx in finalized_transactions:
+        transactions.append({
+            "status": "processed",
+            "hash_id": tx.tx_id,
+            "amount": tx.amount,
+            "sender": tx.sender,
+            "receiver": tx.receiver
+        })
     
-    return {"status": "OK", "transactions_made": len(transactions)}
+    return {"status": "OK", "transactions": transactions}
 
 @app.post("/send-transaction")
 async def send_message(data: TransactionBody):

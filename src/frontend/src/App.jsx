@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ReloadIcon } from '@radix-ui/react-icons';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
@@ -11,28 +11,32 @@ import { Toaster } from './components/Toast';
 function App() {
 	const [txBtnDisabled, setTxBtnDisabled] = useState(false);
 	const [chosenTxHistoryNode, setChosenTxHistoryNode] = useState(9090);
-	const [txHistory, setTxHistory] = useState(0);
+	const [txHistory, setTxHistory] = useState([]);
 	const [senderPeer, setSenderPeer] = useState(undefined);
 	const [recipientPeer, setRecipientPeer] = useState(undefined);
 	const [key, setKey] = useState(new Date());
 
 	// Request transaction from specific node
-	const getTransactions = chosenNode => {
+	const getTransactions = useCallback((chosenNode, silent) => {
 		fetch(`http://localhost:8000/get-transactions/${chosenNode}`, {
 			method: 'GET',
 			redirect: 'follow',
 		})
 			.then(response => response.json())
 			.then(result => {
+				if (!silent) toast('Transactions table refreshed!');
+
 				console.log(result);
-				toast('Transactions table refreshed!');
-				setTxHistory(result.transactions_made);
+				setTxHistory(result.transactions);
 			})
 			.catch(error => {
-				toast('Some error occurred!');
+				if (!silent) toast('Some error occurred!');
 				console.error(error);
 			});
-	};
+	}, []);
+
+	// On load get transactions
+	useEffect(() => getTransactions(9090, true), [getTransactions]);
 
 	// Handle sending transaction
 	const handleTransaction = () => {
@@ -61,7 +65,9 @@ function App() {
 			});
 
 		setTimeout(() => {
+			getTransactions(chosenTxHistoryNode, true);
 			toast('Transaction successfully sent!');
+
 			setTxBtnDisabled(false);
 			setSenderPeer(undefined);
 			setRecipientPeer(undefined);
@@ -143,33 +149,37 @@ function App() {
 				<Table>
 					<TableHeader>
 						<TableRow>
-							<TableHead className="w-[680px]">
+							<TableHead className="w-[980px]">
 								<div className="flex justify-between">
-									<span>ID</span>
-									<div className="flex justify-between w-[200px]">
-										<span>Status</span>
-										<span className="text-right">Amount</span>
+									<span>Hash</span>
+									<div className="flex justify-between text-center">
+										<span className="w-[100px]">Status</span>
+										<span className="w-[100px]">Amount</span>
+										<span className="w-[100px]">Sender</span>
+										<span className="w-[100px]">Receiver</span>
 									</div>
 								</div>
 							</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18].map(i => (
-							<TableRow key={i}>
+						{txHistory.map(({ hash_id, status, amount, sender, receiver }) => (
+							<TableRow key={hash_id}>
 								<TableCell className="font-medium">
-									<div className="flex justify-between">
-										<span>TX-000000{i}</span>
-										<div className="flex justify-between w-[200px]">
-											<span>Processed</span>
-											<span className="text-right">{(Math.random() * (4 - 0.2) + 0.2).toFixed(2)} VAD</span>
+									<div className="flex justify-between text-xs">
+										<span className="text-slate-400">{hash_id}</span>
+										<div className="flex justify-between text-center">
+											<span className="w-[100px]">{status}</span>
+											<span className="w-[100px]">{amount} VAD</span>
+											<span className="w-[100px]">Peer {sender}</span>
+											<span className="w-[100px]">Peer {receiver}</span>
 										</div>
 									</div>
 								</TableCell>
 							</TableRow>
 						))}
 					</TableBody>
-					<TableCaption>List of all processed transactions ({txHistory})</TableCaption>
+					<TableCaption>List of selected node's transactions - {txHistory.length}</TableCaption>
 				</Table>
 			</div>
 			<Toaster />

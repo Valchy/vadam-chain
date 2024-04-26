@@ -18,14 +18,12 @@ from da_types import Blockchain, message_wrapper
 from merkle_util import merkle_root, merkle_proof
 from log.logging_config import *
 
-setup_logging()
-
 # Create logger
+setup_logging()
 logger = logging.getLogger('my_app')
 
 # We are using a custom dataclass implementation.
 dataclass = overwrite_dataclass(dataclass)
-
 
 @dataclass(
     msg_id=1
