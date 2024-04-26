@@ -8,6 +8,7 @@ from pydantic import BaseModel
 class TransactionBody(BaseModel):
     node_id: int
     peer_id: int
+    amount: int
 
 # Create logger
 setup_logging()
@@ -53,10 +54,10 @@ async def send_message(data: TransactionBody):
 
     # Sending transaction
     ipv8_instance = app.ipv8_instances.get(data.node_id).overlays[0]
-    ipv8_instance.send_web_transaction(data.peer_id)
+    ipv8_instance.send_web_transaction(data.peer_id, int(data.amount))
 
     # JSON response
-    return {"status": "sent", "node_id": data.node_id, "peer_id": data.peer_id}
+    return {"status": "sent", "node_id": data.node_id, "peer_id": data.peer_id, "amount": data.amount}
 
 # Host static files
 app.mount("/", StaticFiles(directory="frontend/build", html=True), name="static")
