@@ -296,6 +296,33 @@ class BlockchainNode(Blockchain):
             self.cancel_pending_task("tx_create")
             self.stop()
             return
+        
+    def web_uniswap_transaction(self, coin, amount = 10):
+        tx = Transaction(self.node_id, self.node_id, is_uniswap=True, coin=coin, amount=amount, public_key_bin=b'', signature=b'', tx_id='', nonce=self.counter)
+        tx.public_key_bin = self.my_peer.public_key.key_to_bin()
+        # tx.tx_id = hashlib.sha256(f'{tx.sender}{tx.receiver}{tx.amount}{tx.nonce}'.encode()).hexdigest()
+        tx.tx_id = hashlib.sha256(f'{hexlify(tx.public_key_bin)}{tx.nonce}'.encode()).hexdigest()
+
+        self.sign_transaction(tx)
+        self.counter += 1
+        self.pending_txs.append(tx)
+
+        if coin == 'BTC':
+            self.pools['BTC'] = self.pools['BTC']+tx.amount
+            self.pools['ETH'] = self.c/self.pools['BTC']
+            self.balances['BTC'] -= 10
+        else:
+            self.pools['ETH'] = self.pools['ETH'] + tx.amount
+            self.pools['BTC'] = self.c / self.pools['ETH']
+            self.balances['ETH'] -= 10
+
+        for peer in list(self.get_peers()):
+            self.ez_send(peer, tx)
+
+        if self.counter > self.max_messages:
+            self.cancel_pending_task("tx_create")
+            self.stop()
+            return
 
     def create_uniswap_transaction(self, coin):
         tx = Transaction(self.node_id, self.node_id, is_uniswap=True, coin=coin, public_key_bin=b'', signature=b'', tx_id='', nonce=self.counter)
