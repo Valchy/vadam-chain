@@ -414,9 +414,8 @@ class BlockchainNode(Blockchain):
                 self.logger.info(f'node {self.node_id} has the following blocks: {[block.number for block in self.blocks]}')
 
     def on_start(self):
-        pass
         # self.start_client()
-        # self.start_validator()
+        self.start_validator()
 
     def start_client(self):
         # Create transaction and send to random validator
@@ -481,7 +480,7 @@ class BlockchainNode(Blockchain):
 
         self.executed_checks += 1
 
-        if self.executed_checks > 30:
+        if self.executed_checks > 5:
             self.cancel_pending_task("check_txs")
             balances_output = ', '.join([f'({key}, {value})' for key, value in self.balances.items()])
             print(f'balances:  {balances_output}')
