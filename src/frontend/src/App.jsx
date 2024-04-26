@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
+import { ReloadIcon } from '@radix-ui/react-icons';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 
@@ -16,32 +17,27 @@ function App() {
 	const [key, setKey] = useState(new Date());
 
 	// Request transaction from specific node
-	const getTransactions = useCallback(
-		(val = undefined) =>
-			fetch(`http://localhost:8000/get-transactions/${val ? val : chosenTxHistoryNode}`, {
-				method: 'GET',
-				redirect: 'follow',
+	const getTransactions = chosenNode => {
+		fetch(`http://localhost:8000/get-transactions/${chosenNode}`, {
+			method: 'GET',
+			redirect: 'follow',
+		})
+			.then(response => response.json())
+			.then(result => {
+				console.log(result);
+				toast('Transactions table refreshed!');
+				setTxHistory(result.transactions_made);
 			})
-				.then(response => response.json())
-				.then(result => {
-					console.log(result);
-					setTxHistory(result.transactions_made);
-				})
-				.catch(error => console.error(error)),
-		[chosenTxHistoryNode],
-	);
-
-	// Pull transactions every 3 second
-	useEffect(() => {
-		setInterval(() => {
-			getTransactions();
-		}, 3000);
-	}, [getTransactions]);
+			.catch(error => {
+				toast('Some error occurred!');
+				console.error(error);
+			});
+	};
 
 	// Handle sending transaction
 	const handleTransaction = () => {
-		if (!senderPeer) return toast('Please select a sender peer!');
-		if (!recipientPeer) return toast('Please select a recipient peer!');
+		if (senderPeer === undefined) return toast('Please select a sender peer!');
+		if (recipientPeer === undefined) return toast('Please select a recipient peer!');
 		if (senderPeer % 10 === recipientPeer) return toast('Please select different sender and recipient peer!');
 
 		setTxBtnDisabled(true);
@@ -59,7 +55,10 @@ function App() {
 		})
 			.then(response => response.json())
 			.then(result => console.log(result))
-			.catch(error => console.error(error));
+			.catch(error => {
+				toast('Some error occurred!');
+				console.error(error);
+			});
 
 		setTimeout(() => {
 			toast('Transaction successfully sent!');
@@ -67,7 +66,7 @@ function App() {
 			setSenderPeer(undefined);
 			setRecipientPeer(undefined);
 			setKey(new Date());
-		}, 2500); // so it looks cooler ;)
+		}, 2500); // so it looks cooler making request seem longer ;)
 	};
 
 	return (
@@ -79,7 +78,7 @@ function App() {
 			<div className="flex justify-between items-center w-full max-w-[480px]">
 				<div className="flex flex-col">
 					<span className="text-center text-sm mb-1">Sender</span>
-					<Select key={key} value={senderPeer} onValueChange={val => setSenderPeer(val)}>
+					<Select disabled={txBtnDisabled} key={key} value={senderPeer} onValueChange={val => setSenderPeer(val)}>
 						<SelectTrigger className="w-[200px]">
 							<SelectValue placeholder="Select a peer..." />
 						</SelectTrigger>
@@ -96,7 +95,7 @@ function App() {
 				<span className="mt-7 !font-[monospace]">&gt;&gt;&gt;</span>
 				<div className="flex flex-col">
 					<span className="text-center text-sm mb-1">Recipient</span>
-					<Select key={key} value={recipientPeer} onValueChange={val => setRecipientPeer(val)}>
+					<Select disabled={txBtnDisabled} key={key} value={recipientPeer} onValueChange={val => setRecipientPeer(val)}>
 						<SelectTrigger className="w-[200px]">
 							<SelectValue placeholder="Select a peer..." />
 						</SelectTrigger>
@@ -118,25 +117,28 @@ function App() {
 			<div className="mt-2">
 				<div className="flex justify-between items-center mb-5">
 					<h2 className="text-center font-light text-md">Transactions History</h2>
-					<Select
-						value={chosenTxHistoryNode}
-						onValueChange={val => {
-							setChosenTxHistoryNode(val);
-							getTransactions(val);
-						}}
-					>
-						<SelectTrigger className="w-[140px]">
-							<SelectValue placeholder="Choose node..." />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectGroup>
-								<SelectLabel>Fetch data from</SelectLabel>
-								<SelectItem value={9090}>Node 1</SelectItem>
-								<SelectItem value={9091}>Node 2</SelectItem>
-								<SelectItem value={9092}>Node 3</SelectItem>
-							</SelectGroup>
-						</SelectContent>
-					</Select>
+					<div className="flex items-center gap-5">
+						<Select
+							value={chosenTxHistoryNode}
+							onValueChange={val => {
+								setChosenTxHistoryNode(val);
+								getTransactions(val);
+							}}
+						>
+							<SelectTrigger className="w-[140px]">
+								<SelectValue placeholder="Choose node..." />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectGroup>
+									<SelectLabel>Fetch data from</SelectLabel>
+									<SelectItem value={9090}>Node 1</SelectItem>
+									<SelectItem value={9091}>Node 2</SelectItem>
+									<SelectItem value={9092}>Node 3</SelectItem>
+								</SelectGroup>
+							</SelectContent>
+						</Select>
+						<ReloadIcon onClick={() => getTransactions(chosenTxHistoryNode)} className="cursor-pointer" />
+					</div>
 				</div>
 				<Table>
 					<TableHeader>

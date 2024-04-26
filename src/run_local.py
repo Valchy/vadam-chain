@@ -1,6 +1,6 @@
 # Command to run file from console
 # WINDOWS: source .venv/Scripts/activate; cd src; python run_local.py
-# MAC: source .venv/bin/activate; cd src; python run_local.py
+# MAC: source .venv/bin/activate; cd src; python3 run_local.py
 
 from asyncio import run
 import threading
