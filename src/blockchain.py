@@ -20,9 +20,11 @@ from log.logging_config import *
 
 
 # Create logger
-setup_logging()
-logger = logging.getLogger('my_app')
-
+# setup_logging()
+#
+#
+# logger = logging.getLogger('my_app')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', filename='./log/app.log',)
 # We are using a custom dataclass implementation.
 dataclass = overwrite_dataclass(dataclass)
 
@@ -164,6 +166,8 @@ class BlocksRequest:
 
 class BlockchainNode(Blockchain):
     def __init__(self, settings: CommunitySettings) -> None:
+        self.logger = logging.getLogger(__name__)
+
         super().__init__(settings)
         self.counter = 1
         self.max_messages = 15
@@ -328,7 +332,7 @@ class BlockchainNode(Blockchain):
         self.find_optimal_chain()
 
     def broadcast_current_block(self):
-        logger.info(f'Node {self.node_id} is broadcasting self.curr_block! {self.curr_block.number}')
+        self.logger.info(f'Node {self.node_id} is broadcasting self.curr_block! {self.curr_block.number}')
 
         for peer in list(self.get_peers()):
             self.ez_send(peer, self.curr_block)
@@ -359,28 +363,28 @@ class BlockchainNode(Blockchain):
         # Debugging output to trace chains
         try:
             print(f'Node {self.node_id} has {len(chains)} chains')
-            logger.info(f'Node {self.node_id} has {len(chains)} chains')
+            self.logger.info(f'Node {self.node_id} has {len(chains)} chains')
             for chain in chains:
-                logger.info(f'Chain length: {len(chain)}')
+                self.logger.info(f'Chain length: {len(chain)}')
                 for block in chain:
-                    logger.info(f'Block number: {block.number}, hash: {block.hash}')
+                    self.logger.info(f'Block number: {block.number}, hash: {block.hash}')
         except Exception as e:
-            logger.info(f"An error occurred while printing chain details: {e}")
+            self.logger.info(f"An error occurred while printing chain details: {e}")
 
     def check_curr_block(self) :
-        logger.info(f'Node {self.node_id} is checking self.curr_block!')
+        self.logger.info(f'Node {self.node_id} is checking self.curr_block!')
 
         for txs in self.pending_txs:
             result = self.curr_block.add_transaction(txs)
 
             if result == False:
-                logger.info(f'{self.node_id} has full cur_block!')
+                self.logger.info(f'{self.node_id} has full cur_block!')
 
                 self.cancel_pending_task("mine_block")
                 self.register_mine_task()
 
-                logger.info(f'Node {self.node_id} created new block with number {self.curr_block.number}')
-                logger.info(f'node {self.node_id} has the following blocks: {[block.number for block in self.blocks]}')
+                self.logger.info(f'Node {self.node_id} created new block with number {self.curr_block.number}')
+                self.logger.info(f'node {self.node_id} has the following blocks: {[block.number for block in self.blocks]}')
 
     def on_start(self):
         pass
@@ -403,7 +407,7 @@ class BlockchainNode(Blockchain):
     def mine(self):
         now = time.time()
         # loop = asyncio.get_event_loop()
-        logger.info(f'Someone is mining block {self.curr_block.number}...')
+        self.logger.info(f'Someone is mining block {self.curr_block.number}...')
         while True:
             self.curr_block.hashing_value = self.curr_block.get_hashing_value(self.my_peer.public_key.key_to_bin())
             self.curr_block.hash = hashlib.sha256(self.curr_block.hashing_value.encode()).hexdigest()
@@ -412,14 +416,14 @@ class BlockchainNode(Blockchain):
 
             if int(self.curr_block.hash, 16) < target_value:
                 self.curr_block.time = int(self.curr_block.prev_block_time + time.time() - now)
-                logger.info(f'Block {self.curr_block.number} is mined. Here is hash: {self.curr_block.hash}')
-                logger.info(f'Block {self.curr_block.number} based on hashing value:{self.curr_block.hashing_value}')
-                logger.info(f'Block {self.curr_block.number} based on nonce:{self.curr_block.nonce}')
-                logger.info(f'It took {time.time() - now} seconds to mine this block {self.curr_block.number}')
+                self.logger.info(f'Block {self.curr_block.number} is mined. Here is hash: {self.curr_block.hash}')
+                self.logger.info(f'Block {self.curr_block.number} based on hashing value:{self.curr_block.hashing_value}')
+                self.logger.info(f'Block {self.curr_block.number} based on nonce:{self.curr_block.nonce}')
+                self.logger.info(f'It took {time.time() - now} seconds to mine this block {self.curr_block.number}')
                 self.append_block(self.curr_block)
                 self.update_pending_finalized_txs(self.curr_block)
                 for peer in self.get_peers():
-                    logger.info(f'sending block {self.curr_block.number}')
+                    self.logger.info(f'sending block {self.curr_block.number}')
                     self.ez_send(peer, self.curr_block)
                 self.create_block()
                 return self.curr_block.hash
@@ -454,10 +458,10 @@ class BlockchainNode(Blockchain):
             self.cancel_pending_task("check_txs")
             balances_output = ', '.join([f'({key}, {value})' for key, value in self.balances.items()])
             print(f'balances:  {balances_output}')
-            logger.info(f'balances:  {balances_output}')
+            self.logger.info(f'balances:  {balances_output}')
             print(f'amount of transactions: {len(self.curr_block.transactions)}')
-            # logger.info(f'amount of transactions: {len(self.curr_block.transactions)}')
-            logger.info(f'node id: {self.node_id}, self.pending_txs length: {len(self.pending_txs)}, '
+            # self.logger.info(f'amount of transactions: {len(self.curr_block.transactions)}')
+            self.logger.info(f'node id: {self.node_id}, self.pending_txs length: {len(self.pending_txs)}, '
                         f'self.finalized_txs length: {len(self.finalized_txs)}, number of collision: {self.collision_num}')
             self.stop()
 
@@ -493,9 +497,9 @@ class BlockchainNode(Blockchain):
 
             # Add to pending transactions if signature is verified
             print(f'transaction nonce:{payload.nonce}')
-            logger.info(f'transaction nonce:{payload.nonce}')
+            self.logger.info(f'transaction nonce:{payload.nonce}')
             print(f'[Node {self.node_id}] Received transaction {payload.nonce} from {self.node_id_from_peer(peer)}')
-            logger.info(f'[Node {self.node_id_from_peer(peer)}] -> [Node {self.node_id}] TTL: {payload.ttl} ')
+            self.logger.info(f'[Node {self.node_id_from_peer(peer)}] -> [Node {self.node_id}] TTL: {payload.ttl} ')
             
             if (hexlify(payload.public_key_bin), payload.nonce) not in [(hexlify(tx.public_key_bin), tx.nonce) for tx in
                                                                         self.finalized_txs] and (
@@ -503,7 +507,7 @@ class BlockchainNode(Blockchain):
                                                                             tx in self.pending_txs]:
 
                 self.pending_txs.append(payload)
-                logger.info(
+                self.logger.info(
                     f'Node {self.node_id} already have {len(self.finalized_txs)} from finalized and {len(self.pending_txs)} in pending')
                 self.check_curr_block()
             else:
@@ -524,7 +528,7 @@ class BlockchainNode(Blockchain):
 
     def update_pending_finalized_txs(self, block):
         # we need to remove from pending_txs transactions that were already included in mined block
-        logger.info(f'Node {self.node_id} Updating of pending_txs and finalized_txs............')
+        self.logger.info(f'Node {self.node_id} Updating of pending_txs and finalized_txs............')
        
         for tx in self.pending_txs:
             if tx not in block.transactions:
@@ -533,7 +537,7 @@ class BlockchainNode(Blockchain):
 
     def clean_curr_block_txs(self, payload):
         # we need to remove transactions included in mined block from out curr_block.transactions
-        logger.info(f'Node {self.node_id} Cleaning of self.curr_block_txs............')
+        self.logger.info(f'Node {self.node_id} Cleaning of self.curr_block_txs............')
         new_txs_list = []
 
         for tx in payload.transactions:
@@ -546,13 +550,13 @@ class BlockchainNode(Blockchain):
     def on_block(self, peer: Peer, payload: Block) -> None:
         if self.verify_block(payload):
             print(f'[Node {self.node_id}] Received block {payload.number} from [Node {self.node_id_from_peer(peer)}]')
-            logger.info(
+            self.logger.info(
                 f'[Node {self.node_id}] Received block {payload.number} from [Node {self.node_id_from_peer(peer)}]')
 
         #     # pull gossip
         #     prev_block_number = 0 if len(self.blocks) == 0 else self.blocks[-1].number
         #     if (payload.number - prev_block_number == 1):
-        #         logger.info('we received block  that we can append')
+        #         self.logger.info('we received block  that we can append')
         #         # we received block  that we can append
         #         self.blocks.append(payload)
         #         self.update_pending_finalized_txs(payload)
@@ -567,7 +571,7 @@ class BlockchainNode(Blockchain):
         #         for peer in self.get_peers():
         #             self.ez_send(peer, payload)
         #     elif (payload.number - prev_block_number) < 1:
-        #         logger.info('we received block that we already have')
+        #         self.logger.info('we received block that we already have')
         #         # we already have this block, then
         #         # broadcast to all peers
         #         for peer in self.get_peers():
@@ -581,19 +585,19 @@ class BlockchainNode(Blockchain):
         #         start_block_number = self.blocks[-1].number + 1
         #         end_block_number = payload.number
 
-        #         logger.info(
+        #         self.logger.info(
         #             f'we received block that we dont have, need request from block from {start_block_number} to {end_block_number}')
         #         request_message = self.create_blocks_request(self.node_id, start_block_number, end_block_number)
 
             #     for peer in self.get_peers():
             #         self.ez_send(peer, request_message)
 
-            # logger.info(f'Node {self.node_id} has the following blocks: {[block.number for block in self.blocks]}')
+            # self.logger.info(f'Node {self.node_id} has the following blocks: {[block.number for block in self.blocks]}')
 
     @message_wrapper(BlocksRequest)
     def on_blocks_request(self, peer: Peer, payload: BlocksRequest) -> None:
-        logger.info(f'Node {self.node_id} has the following blocks: {[block.number for block in self.blocks]}')
-        logger.info(
+        self.logger.info(f'Node {self.node_id} has the following blocks: {[block.number for block in self.blocks]}')
+        self.logger.info(
             f'Node {self.node_id} received block request from {payload.start_block_number} to {payload.end_block_number}')
         last_possible_block_number = min(payload.end_block_number + 1, self.blocks[-1].number)
 
