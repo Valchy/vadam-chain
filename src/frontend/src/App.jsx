@@ -74,7 +74,7 @@ function App() {
 			.then(response => response.json())
 			.then(result => console.log(result))
 			.catch(error => {
-				toast.error('Some error occurred!');
+				// toast.error('Some error occurred!');
 				console.error(error);
 			});
 

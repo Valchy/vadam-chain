@@ -14,7 +14,7 @@ const TableHeader = forwardRef(({ className, ...props }, ref) => <thead ref={ref
 TableHeader.displayName = 'TableHeader';
 
 const TableBody = forwardRef(({ className, ...props }, ref) => (
-	<ScrollArea className="h-[280px]">
+	<ScrollArea className="h-[240px]">
 		<tbody ref={ref} className={cn('[&_tr:last-child]:border-0', className)} {...props} />
 	</ScrollArea>
 ));
