@@ -44,9 +44,10 @@ function App() {
 
 	// Handle sending transaction
 	const handleTransaction = () => {
+		console.log(senderPeer, receiverPeer);
 		if (senderPeer === undefined) return toast.error('Please select a sender peer!');
 		if (receiverPeer === undefined) return toast.error('Please select a receiver peer!');
-		if (senderPeer % 10 === receiverPeer) return toast.error('Please select different sender and receiver peer!');
+		if (senderPeer % 10 === receiverPeer % 10) return toast.error('Please select different sender and receiver peer!');
 		if (!txAmount) return toast.error('Please select amount for transaction!');
 
 		setTxBtnDisabled(true);
