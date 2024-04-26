@@ -162,8 +162,8 @@ function App() {
 									</>
 								) : (
 									<>
-										<SelectItem value="BTC">BTC to ETH</SelectItem>
-										<SelectItem value="ETH">ETH to BTC</SelectItem>
+										<SelectItem value="BTC">VAD to ETH</SelectItem>
+										<SelectItem value="ETH">ETH to VAD</SelectItem>
 									</>
 								)}
 							</SelectGroup>
@@ -175,7 +175,7 @@ function App() {
 				{txBtnDisabled && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
 				{txBtnDisabled ? 'Processing...' : 'Send Transaction'}
 			</Button>
-			<div className="mt-2">
+			<div>
 				<div className="flex justify-between items-center mb-5">
 					<h2 className="text-center font-light text-md">Transactions History</h2>
 					<div className="flex items-center gap-5">
@@ -227,7 +227,7 @@ function App() {
 											<span className="w-[100px]">{status}</span>
 											<span className="w-[100px]">{amount} VAD</span>
 											<span className="w-[100px]">Peer {(sender % 10) + 1}</span>
-											<span className="w-[100px]">Peer {receiver % 10}</span>
+											<span className="w-[100px]">Peer {(receiver % 10) + 1}</span>
 										</div>
 									</div>
 								</TableCell>
