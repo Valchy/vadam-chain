@@ -313,11 +313,11 @@ class BlockchainNode(Blockchain):
 
         if coin == 'BTC':
             self.pools['BTC'] = self.pools['BTC']+tx.amount
-            self.pools['ETH'] = self.c/self.pools['BTC']
+            self.pools['ETH'] = int(self.pools['BTC']) * int(self.pools['ETH']) // int(self.pools['BTC'])
             self.balances['BTC'] -= 10
         else:
             self.pools['ETH'] = self.pools['ETH'] + tx.amount
-            self.pools['BTC'] = self.c / self.pools['ETH']
+            self.pools['BTC'] = int(self.pools['BTC']) * int(self.pools['ETH']) // int(self.pools['ETC'])
             self.balances['ETH'] -= 10
 
         for peer in list(self.get_peers()):
