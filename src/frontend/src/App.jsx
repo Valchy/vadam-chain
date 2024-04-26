@@ -13,7 +13,7 @@ import { Toaster } from './components/Toast';
 function App() {
 	const [txBtnDisabled, setTxBtnDisabled] = useState(false);
 	const [txAmount, setTxAmount] = useState(undefined);
-	const [chosenTxHistoryNode, setChosenTxHistoryNode] = useState(9090);
+	const [chosenTxHistoryNode, setCHosenTxHistoryNode] = useState(9090);
 	const [txHistory, setTxHistory] = useState([]);
 	const [senderPeer, setSenderPeer] = useState(undefined);
 	const [receiverPeer, setReceiverPeer] = useState(undefined);
@@ -161,8 +161,8 @@ function App() {
 									</>
 								) : (
 									<>
-										<SelectItem value="BTC">BTC</SelectItem>
-										<SelectItem value="ETC">ETH</SelectItem>
+										<SelectItem value="BTC">BTC to ETH</SelectItem>
+										<SelectItem value="ETH">ETH to BTC</SelectItem>
 									</>
 								)}
 							</SelectGroup>
@@ -181,7 +181,7 @@ function App() {
 						<Select
 							value={chosenTxHistoryNode}
 							onValueChange={val => {
-								setChosenTxHistoryNode(val);
+								setCHosenTxHistoryNode(val);
 								getTransactions(val);
 							}}
 						>
