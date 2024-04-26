@@ -469,8 +469,8 @@ class BlockchainNode(Blockchain):
         # else:
         #     return True
 
-    def send_web_transaction(self, peer_recipient):
-        tx = Transaction(self.node_id, peer_recipient, 10, b'', b'', '', self.counter)
+    def send_web_transaction(self, peer_recipient, amount = 10):
+        tx = Transaction(self.node_id, peer_recipient, amount, b'', b'', '', self.counter)
         tx.public_key_bin = self.my_peer.public_key.key_to_bin()
         tx.tx_id = hashlib.sha256(f'{hexlify(tx.public_key_bin)}{tx.nonce}'.encode()).hexdigest()
 
