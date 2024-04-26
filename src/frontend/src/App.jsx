@@ -225,8 +225,8 @@ function App() {
 										<div className="flex justify-between text-center">
 											<span className="w-[100px]">{status}</span>
 											<span className="w-[100px]">{amount} VAD</span>
-											<span className="w-[100px]">Peer {sender + 1}</span>
-											<span className="w-[100px]">Peer {receiver + 1}</span>
+											<span className="w-[100px]">Peer {(sender % 10) + 1}</span>
+											<span className="w-[100px]">Peer {receiver % 10}</span>
 										</div>
 									</div>
 								</TableCell>
