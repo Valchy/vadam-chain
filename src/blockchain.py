@@ -475,9 +475,9 @@ class BlockchainNode(Blockchain):
         self.executed_checks += 1
 
         if self.executed_checks > 5:
-            print(f'balances: {self.balances}')
+            # print(f'balances: {self.balances}')
             self.logger.info(f'balances: {self.balances}')
-            print(f'amount of transactions: {len(self.curr_block.transactions)}')
+            # print(f'amount of transactions: {len(self.curr_block.transactions)}')
             # self.logger.info(f'amount of transactions: {len(self.curr_block.transactions)}')
             self.logger.info(f'node id: {self.node_id}, self.pending_txs length: {len(self.pending_txs)}, '
                         f'self.finalized_txs length: {len(self.finalized_txs)}, number of collision: {self.collision_num}')
