@@ -34,8 +34,8 @@ dataclass = overwrite_dataclass(dataclass)
 class Transaction:
     sender: int
     receiver: int
-    is_uniswap = False
-    coin = "ETH"
+    is_uniswap:bool
+    coin:str
     amount: int
     public_key_bin: bytes
     signature: bytes
@@ -72,7 +72,7 @@ class Block:
         return "".join([tx.tx_id for tx in self.transactions]) + str(self.nonce) + str(self.number) + str(public_key_bin)
 
     def add_transaction(self, transaction: Transaction) -> bool:
-        if len(self.transactions) < 10:
+        if len(self.transactions) < 3:
             if transaction not in self.transactions:
                 self.transactions.append(transaction)
             return True
@@ -194,22 +194,6 @@ class BlockchainNode(Blockchain):
         self.add_message_handler(Block, self.on_block)
         self.add_message_handler(BlocksRequest, self.on_blocks_request)
 
-    def add_liquidity(self, btc_amount, eth_amount):
-        self.pools['BTC'] += btc_amount
-        self.pools['ETH'] += eth_amount
-        self.balances['BTC'] -= btc_amount
-        self.balances['ETH'] -= eth_amount
-        print(f"Added liquidity: {btc_amount} BTC and {eth_amount} ETH")
-
-    def remove_liquidity(self, btc_amount, eth_amount):
-        if self.pools['BTC'] >= btc_amount and self.pools['ETH'] >= eth_amount:
-            self.pools['BTC'] -= btc_amount
-            self.pools['ETH'] -= eth_amount
-            self.balances['BTC'] += btc_amount
-            self.balances['ETH'] += eth_amount
-            print(f"Removed liquidity: {btc_amount} BTC and {eth_amount} ETH")
-        else:
-            print("Insufficient liquidity to remove.")
 
     def create_block(self):
         self.calculate_difficulty()
@@ -313,12 +297,22 @@ class BlockchainNode(Blockchain):
 
         if coin == 'BTC':
             self.pools['BTC'] = self.pools['BTC']+tx.amount
-            self.pools['ETH'] = int(self.pools['BTC']) * int(self.pools['ETH']) // int(self.pools['BTC'])
-            self.balances['BTC'] -= 10
+            old_eth = self.pools['ETH']
+            self.pools['ETH'] = self.c / int(self.pools['BTC'])
+            self.balances[self.node_id]['BTC'] -= tx.amount
+            self.balances[self.node_id]['ETH'] += old_eth - self.pools['ETH']
+            self.logger.info(f'Node {self.node_id} added {tx.amount} BTC to the pool')
+            self.logger.info(f'Node {self.node_id} has the following pools: {self.pools}')
+            self.logger.info(f'Node {self.node_id} has the following balances: {self.balances}')
         else:
             self.pools['ETH'] = self.pools['ETH'] + tx.amount
-            self.pools['BTC'] = int(self.pools['BTC']) * int(self.pools['ETH']) // int(self.pools['ETC'])
-            self.balances['ETH'] -= 10
+            old_btc = self.pools['BTC']
+            self.pools['BTC'] = self.c / int(self.pools['ETH'])
+            self.balances[self.node_id]['ETH'] -= tx.amount
+            self.balances[self.node_id]['BTC'] += old_btc - self.pools['BTC']
+            self.logger.info(f'Node {self.node_id} added {tx.amount} ETH to the pool')
+            self.logger.info(f'Node {self.node_id} has the following pools: {self.pools}')
+            self.logger.info(f'Node {self.node_id} has the following balances: {self.balances}')
 
         for peer in list(self.get_peers()):
             self.ez_send(peer, tx)
@@ -500,7 +494,7 @@ class BlockchainNode(Blockchain):
         #     return True
 
     def send_web_transaction(self, peer_recipient, amount = 10):
-        tx = Transaction(self.node_id, peer_recipient, amount, b'', b'', '', self.counter)
+        tx = Transaction(self.node_id, peer_recipient, False, "ETH", amount, b'', b'', '', self.counter,)
         tx.public_key_bin = self.my_peer.public_key.key_to_bin()
         tx.tx_id = hashlib.sha256(f'{hexlify(tx.public_key_bin)}{tx.nonce}'.encode()).hexdigest()
 
