@@ -475,15 +475,12 @@ class BlockchainNode(Blockchain):
         self.executed_checks += 1
 
         if self.executed_checks > 5:
-            self.cancel_pending_task("check_txs")
-            balances_output = ', '.join([f'({key}, {value})' for key, value in self.balances.items()])
-            print(f'balances:  {balances_output}')
-            self.logger.info(f'balances:  {balances_output}')
+            print(f'balances: {self.balances}')
+            self.logger.info(f'balances: {self.balances}')
             print(f'amount of transactions: {len(self.curr_block.transactions)}')
             # self.logger.info(f'amount of transactions: {len(self.curr_block.transactions)}')
             self.logger.info(f'node id: {self.node_id}, self.pending_txs length: {len(self.pending_txs)}, '
                         f'self.finalized_txs length: {len(self.finalized_txs)}, number of collision: {self.collision_num}')
-            self.stop()
 
     def verify_block(self, block: Block) -> bool:
         return True
@@ -501,6 +498,8 @@ class BlockchainNode(Blockchain):
         self.sign_transaction(tx)
         self.counter += 1
         self.pending_txs.append(tx)
+
+        
 
         for peer in list(self.get_peers()):
             self.ez_send(peer, tx)
