@@ -1,4 +1,5 @@
 # Command to run file from console
+# Don't forget to pip install -r requirements.txt before running commands below
 # WINDOWS: source .venv/Scripts/activate; cd src; python run_local.py
 # MAC: source .venv/bin/activate; cd src; python3 run_local.py
 
