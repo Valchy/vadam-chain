@@ -5,9 +5,14 @@ from log.logging_config import setup_logging
 import logging
 from pydantic import BaseModel
 
-class TransactionBody(BaseModel):
+class TransactionBodySend(BaseModel):
     node_id: int
     peer_id: int
+    amount: int
+
+class TransactionBodySwap(BaseModel):
+    node_id: int
+    coin: str
     amount: int
 
 # Create logger
@@ -47,7 +52,7 @@ async def get_transactions(node_port: int):
     return {"status": "OK", "transactions": transactions}
 
 @app.post("/send-transaction")
-async def send_message(data: TransactionBody):
+async def send_message(data: TransactionBodySend):
     logger.info(f'Send message api called received, node {data.node_id}...')
 
     # Todo: Error handling if node_id and peer_id are valid
@@ -58,6 +63,15 @@ async def send_message(data: TransactionBody):
 
     # JSON response
     return {"status": "sent", "node_id": data.node_id, "peer_id": data.peer_id, "amount": data.amount}
+
+@app.post('/swap-currency')
+async def swap_currency(data: TransactionBodySwap):
+    # Sending transaction
+    ipv8_instance = app.ipv8_instances.get(data.node_id).overlays[0]
+    ipv8_instance.web_uniswap_transaction(data.coin, int(data.amount))
+
+    # JSON response
+    return {"status": "sent", "node_id": data.node_id, "coin": data.coin, "amount": data.amount}
 
 # Host static files
 app.mount("/", StaticFiles(directory="frontend/build", html=True), name="static")

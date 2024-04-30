@@ -5,6 +5,7 @@ import { Loader2 } from 'lucide-react';
 
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from './components/Select';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from './components/Table';
+import { Tabs, TabsList, TabsTrigger } from './components/Tabs';
 import { Input } from './components/Input';
 import { Button } from './components/Button';
 import { Toaster } from './components/Toast';
@@ -12,10 +13,11 @@ import { Toaster } from './components/Toast';
 function App() {
 	const [txBtnDisabled, setTxBtnDisabled] = useState(false);
 	const [txAmount, setTxAmount] = useState(undefined);
-	const [chosenTxHistoryNode, setChosenTxHistoryNode] = useState(9090);
+	const [chosenTxHistoryNode, setCHosenTxHistoryNode] = useState(9090);
 	const [txHistory, setTxHistory] = useState([]);
 	const [senderPeer, setSenderPeer] = useState(undefined);
 	const [receiverPeer, setReceiverPeer] = useState(undefined);
+	const [isVadSwap, setIsVadSwap] = useState('send');
 	const [key, setKey] = useState(new Date());
 
 	// Request transaction from specific node
@@ -42,35 +44,45 @@ function App() {
 
 	// Handle sending transaction
 	const handleTransaction = () => {
+		console.log(senderPeer, receiverPeer);
 		if (senderPeer === undefined) return toast.error('Please select a sender peer!');
 		if (receiverPeer === undefined) return toast.error('Please select a receiver peer!');
-		if (senderPeer % 10 === receiverPeer) return toast.error('Please select different sender and receiver peer!');
+		if (senderPeer % 10 === receiverPeer % 10) return toast.error('Please select different sender and receiver peer!');
 		if (!txAmount) return toast.error('Please select amount for transaction!');
 
 		setTxBtnDisabled(true);
+		let bodyTx =
+			isVadSwap === 'send'
+				? {
+						node_id: senderPeer,
+						peer_id: receiverPeer,
+						amount: parseInt(txAmount),
+				  }
+				: {
+						node_id: senderPeer,
+						coin: receiverPeer,
+						amount: parseInt(txAmount),
+				  };
 
-		fetch('http://localhost:8000/send-transaction', {
+		fetch(`http://localhost:8000/${isVadSwap === 'send' ? 'send-transaction' : 'swap-currency'}`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
 			},
-			body: JSON.stringify({
-				node_id: senderPeer,
-				peer_id: receiverPeer,
-				amount: parseInt(txAmount),
-			}),
+			body: JSON.stringify(bodyTx),
 			redirect: 'follow',
 		})
 			.then(response => response.json())
 			.then(result => console.log(result))
 			.catch(error => {
-				toast.error('Some error occurred!');
+				// toast.error('Some error occurred!');
 				console.error(error);
 			});
 
 		setTimeout(() => {
 			getTransactions(chosenTxHistoryNode, true);
-			toast.success('Transaction successfully sent!');
+			if (isVadSwap === 'send') toast.success('Transaction successfully sent!');
+			else toast.success('Currency successfully swapped!');
 
 			setTxBtnDisabled(false);
 			setSenderPeer(undefined);
@@ -85,6 +97,12 @@ function App() {
 			<div className="flex flex-col items-center">
 				<b className="mt-10 text-2xl">VADAM-CHAIN</b>
 				<p className="text-slate-500 mb-4 text-sm font-light mt-[2px]">When the speed of light is too slow, use vadam-chain.</p>
+				<Tabs onValueChange={val => setIsVadSwap(val)} value={isVadSwap}>
+					<TabsList>
+						<TabsTrigger value="send">Send</TabsTrigger>
+						<TabsTrigger value="swap">Swap</TabsTrigger>
+					</TabsList>
+				</Tabs>
 			</div>
 			<div className="flex justify-between items-center w-full max-w-[680px]">
 				<div className="flex flex-col">
@@ -110,7 +128,7 @@ function App() {
 						value={txAmount}
 						disabled={txBtnDisabled}
 						onChange={({ target }) => setTxAmount(target.value)}
-						placeholder="10 VAD"
+						placeholder={isVadSwap === 'send' ? '10 VAD' : '10'}
 						className="w-[80px] text-center"
 						max={3}
 						onKeyDown={event => {
@@ -128,17 +146,26 @@ function App() {
 				</div>
 				<span className="mt-7 !font-[monospace]">&gt;&gt;&gt;</span>
 				<div className="flex flex-col">
-					<span className="text-center text-sm mb-1">Receiver</span>
+					<span className="text-center text-sm mb-1">{isVadSwap === 'send' ? 'Receiver' : 'Currency'}</span>
 					<Select disabled={txBtnDisabled} key={key} value={receiverPeer} onValueChange={val => setReceiverPeer(val)}>
 						<SelectTrigger className="w-[200px]">
-							<SelectValue placeholder="Select a peer..." />
+							<SelectValue placeholder={isVadSwap === 'send' ? 'Select a peer...' : 'Select a currency...'} />
 						</SelectTrigger>
 						<SelectContent>
 							<SelectGroup>
-								<SelectLabel>Receiver</SelectLabel>
-								<SelectItem value={0}>Peer 1</SelectItem>
-								<SelectItem value={1}>Peer 2</SelectItem>
-								<SelectItem value={2}>Peer 3</SelectItem>
+								<SelectLabel>{isVadSwap === 'send' ? 'Receiver' : 'Currency'}</SelectLabel>
+								{isVadSwap === 'send' ? (
+									<>
+										<SelectItem value={9090}>Peer 1</SelectItem>
+										<SelectItem value={9091}>Peer 2</SelectItem>
+										<SelectItem value={9092}>Peer 3</SelectItem>
+									</>
+								) : (
+									<>
+										<SelectItem value="BTC">VAD to ETH</SelectItem>
+										<SelectItem value="ETH">ETH to VAD</SelectItem>
+									</>
+								)}
 							</SelectGroup>
 						</SelectContent>
 					</Select>
@@ -148,14 +175,14 @@ function App() {
 				{txBtnDisabled && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
 				{txBtnDisabled ? 'Processing...' : 'Send Transaction'}
 			</Button>
-			<div className="mt-2">
+			<div>
 				<div className="flex justify-between items-center mb-5">
 					<h2 className="text-center font-light text-md">Transactions History</h2>
 					<div className="flex items-center gap-5">
 						<Select
 							value={chosenTxHistoryNode}
 							onValueChange={val => {
-								setChosenTxHistoryNode(val);
+								setCHosenTxHistoryNode(val);
 								getTransactions(val);
 							}}
 						>
@@ -199,8 +226,8 @@ function App() {
 										<div className="flex justify-between text-center">
 											<span className="w-[100px]">{status}</span>
 											<span className="w-[100px]">{amount} VAD</span>
-											<span className="w-[100px]">Peer {sender + 1}</span>
-											<span className="w-[100px]">Peer {receiver + 1}</span>
+											<span className="w-[100px]">Peer {(sender % 10) + 1}</span>
+											<span className="w-[100px]">Peer {(receiver % 10) + 1}</span>
 										</div>
 									</div>
 								</TableCell>
